@@ -213,7 +213,14 @@ export default memo(function Terminal({
           sessionIdRef.current = sessionId;
           channelRef.current = channel;
           onSessionCreatedRef.current(tabIdRef.current, sessionId);
-          fitAndResize(); // catch resize events lost during spawn
+          // Reset tracking to spawn-time values so fitAndResize detects
+          // the delta if the terminal resized while spawn was in flight.
+          // Without this, a resize during spawn is recorded in lastCols/lastRows
+          // but never sent (sessionId was null), and the post-spawn fit sees
+          // no change and skips the PTY resize — leaving the PTY at stale dims.
+          lastCols = cols;
+          lastRows = rows;
+          fitAndResize();
         })
         .catch((err) => {
           if (cancelled) return;

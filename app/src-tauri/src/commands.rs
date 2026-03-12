@@ -76,8 +76,10 @@ pub async fn resize_pty(
     rows: i16,
 ) -> Result<(), String> {
     if cols <= 0 || rows <= 0 || cols > 500 || rows > 200 {
+        log_error!("resize_pty: invalid dimensions {cols}x{rows}");
         return Err("Invalid terminal dimensions".to_string());
     }
+    log_info!("resize_pty: session={session_id}, cols={cols}, rows={rows}");
     registry.resize(&session_id, cols, rows)
 }
 
