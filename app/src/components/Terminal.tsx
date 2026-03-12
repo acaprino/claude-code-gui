@@ -48,6 +48,7 @@ export default memo(function Terminal({
   const exitedRef = useRef(false);
   const sessionIdRef = useRef<string | null>(null);
   const channelRef = useRef<any>(null);
+  const resizeRafRef = useRef(0);
   const tabIdRef = useRef(tabId);
   const isActiveRef = useRef(isActive);
   const onRequestCloseRef = useRef(onRequestClose);
@@ -163,11 +164,10 @@ export default memo(function Terminal({
     let cancelled = false;
 
     // Throttle ResizeObserver to one fit per frame + debounce PTY resize
-    let resizeRaf = 0;
     const observer = new ResizeObserver(() => {
-      if (resizeRaf) return;
-      resizeRaf = requestAnimationFrame(() => {
-        resizeRaf = 0;
+      if (resizeRafRef.current) return;
+      resizeRafRef.current = requestAnimationFrame(() => {
+        resizeRafRef.current = 0;
         if (cancelled) return;
         fitAddon.fit();
         syncPtySize(true);
@@ -252,7 +252,7 @@ export default memo(function Terminal({
     return () => {
       cancelled = true;
       cancelAnimationFrame(rafId);
-      cancelAnimationFrame(resizeRaf);
+      cancelAnimationFrame(resizeRafRef.current);
       clearTimeout(resizeTimer);
       clearInterval(heartbeatInterval);
       unlistenDragDrop?.();
@@ -269,9 +269,22 @@ export default memo(function Terminal({
   }, []);
 
   useEffect(() => {
-    if (isActive && fitAndResizeRef.current) {
-      fitAndResizeRef.current();
-      xtermRef.current?.focus();
+    if (isActive) {
+      // Defer fit to next frame so the browser has reflowed after
+      // visibility:hidden -> visible. Without this, fitAddon.fit() reads
+      // stale container dimensions and computes incorrect column counts.
+      const fitRafId = requestAnimationFrame(() => {
+        if (!xtermRef.current) return;
+        // Cancel any pending ResizeObserver rAF to avoid a redundant
+        // second fit() + PTY resize in the same frame.
+        if (resizeRafRef.current) {
+          cancelAnimationFrame(resizeRafRef.current);
+          resizeRafRef.current = 0;
+        }
+        fitAndResizeRef.current?.();
+        xtermRef.current.focus();
+      });
+      return () => cancelAnimationFrame(fitRafId);
     }
   }, [isActive]);
 
