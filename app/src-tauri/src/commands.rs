@@ -208,7 +208,7 @@ pub fn set_window_corner_preference(window: tauri::WebviewWindow, retro: bool) {
     };
     let Ok(handle) = window.window_handle() else { return };
     let RawWindowHandle::Win32(h) = handle.as_raw() else { return };
-    let hwnd = HWND(h.hwnd.get());
+    let hwnd = HWND(h.hwnd.get() as *mut core::ffi::c_void);
     let preference = if retro { DWMWCP_DONOTROUND } else { DWMWCP_DEFAULT };
     unsafe {
         let _ = DwmSetWindowAttribute(
