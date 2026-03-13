@@ -99,7 +99,7 @@ pub struct ProjectInfo {
 
 pub(crate) fn data_dir() -> PathBuf {
     let dir = dirs::data_local_dir()
-        .map(|p| p.join("ember"))
+        .map(|p| p.join("anvil"))
         .unwrap_or_else(|| {
             std::env::current_exe()
                 .ok()
@@ -111,19 +111,19 @@ pub(crate) fn data_dir() -> PathBuf {
 }
 
 fn settings_path() -> PathBuf {
-    data_dir().join("ember-settings.json")
+    data_dir().join("anvil-settings.json")
 }
 
 fn settings_bak_path() -> PathBuf {
-    data_dir().join("ember-settings.json.bak")
+    data_dir().join("anvil-settings.json.bak")
 }
 
 fn usage_path() -> PathBuf {
-    data_dir().join("ember-usage.json")
+    data_dir().join("anvil-usage.json")
 }
 
 fn session_path() -> PathBuf {
-    data_dir().join("ember-session.json")
+    data_dir().join("anvil-session.json")
 }
 
 pub fn load_session() -> Option<serde_json::Value> {

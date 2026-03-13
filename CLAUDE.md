@@ -1,4 +1,4 @@
-# Ember
+# Anvil
 
 A Windows-only Tauri 2 desktop app for selecting and launching Claude Code CLI sessions in tabbed terminals.
 

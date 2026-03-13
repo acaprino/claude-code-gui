@@ -64,6 +64,7 @@ fn main() {
             commands::create_project,
             commands::save_session,
             commands::load_session,
+            commands::set_window_corner_preference,
         ])
         .on_window_event(move |window, event| {
             if let tauri::WindowEvent::CloseRequested { .. } = event {

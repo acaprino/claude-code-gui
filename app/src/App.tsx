@@ -35,9 +35,9 @@ function AppContent() {
 
     if (activeTab.type === "terminal" && activeTab.projectName) {
       const suffix = terminalCount > 1 ? ` (+${terminalCount - 1} tabs)` : "";
-      appWindow.setTitle(`Ember \u2014 ${activeTab.projectName}${suffix}`);
+      appWindow.setTitle(`Anvil \u2014 ${activeTab.projectName}${suffix}`);
     } else {
-      appWindow.setTitle("Ember");
+      appWindow.setTitle("Anvil");
     }
   }, [activeTab, tabs]);
 

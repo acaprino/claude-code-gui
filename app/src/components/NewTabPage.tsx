@@ -264,7 +264,7 @@ function NewTabPage({ tabId, onLaunch, onRequestClose, isActive }: NewTabPagePro
   return (
     <div className="new-tab-page">
       <div className="new-tab-header">
-        <h2>Ember</h2>
+        <h2>Anvil</h2>
         <span className="shortcut-hints">
           <span><kbd>F1</kbd> tool</span>
           <span><kbd>Tab</kbd> model</span>

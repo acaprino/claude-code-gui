@@ -1,5 +1,5 @@
 [package]
-name = "ember"
+name = "anvil"
 version = "1.0.0"
 edition = "2021"
 
@@ -26,10 +26,13 @@ base64 = "0.22"
 tauri-plugin-clipboard-manager = "2"
 tauri-plugin-shell = "2"
 
+raw-window-handle = "0.6"
+
 [dependencies.windows]
 version = "0.62"
 features = [
     "Win32_Foundation",
+    "Win32_Graphics_Dwm",
     "Win32_System_Console",
     "Win32_System_Threading",
     "Win32_System_Pipes",

@@ -199,6 +199,28 @@ pub async fn save_session(session: serde_json::Value) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn set_window_corner_preference(window: tauri::WebviewWindow, retro: bool) {
+    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+    use windows::Win32::Foundation::HWND;
+    use windows::Win32::Graphics::Dwm::{
+        DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE, DWM_WINDOW_CORNER_PREFERENCE,
+        DWMWCP_DEFAULT, DWMWCP_DONOTROUND,
+    };
+    let Ok(handle) = window.window_handle() else { return };
+    let RawWindowHandle::Win32(h) = handle.as_raw() else { return };
+    let hwnd = HWND(h.hwnd.get());
+    let preference = if retro { DWMWCP_DONOTROUND } else { DWMWCP_DEFAULT };
+    unsafe {
+        let _ = DwmSetWindowAttribute(
+            hwnd,
+            DWMWA_WINDOW_CORNER_PREFERENCE,
+            &preference as *const DWM_WINDOW_CORNER_PREFERENCE as *const core::ffi::c_void,
+            core::mem::size_of::<DWM_WINDOW_CORNER_PREFERENCE>() as u32,
+        );
+    }
+}
+
+#[tauri::command]
 pub async fn load_session() -> Result<serde_json::Value, String> {
     log_info!("load_session");
     tokio::task::spawn_blocking(|| Ok(projects::load_session().unwrap_or(serde_json::Value::Null)))

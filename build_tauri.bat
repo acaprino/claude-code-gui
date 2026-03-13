@@ -2,7 +2,7 @@
 setlocal
 
 echo ============================================
-echo   Ember - Tauri App Build
+echo   Anvil - Tauri App Build
 echo ============================================
 echo.
 
@@ -45,11 +45,11 @@ if exist "%DIST_DIR%" rd /s /q "%DIST_DIR%"
 mkdir "%DIST_DIR%"
 
 :: Copy standalone exe
-if exist "%RELEASE_DIR%\ember.exe" (
-    copy /Y "%RELEASE_DIR%\ember.exe" "%DIST_DIR%\" >nul
-    echo   - ember.exe
+if exist "%RELEASE_DIR%\anvil.exe" (
+    copy /Y "%RELEASE_DIR%\anvil.exe" "%DIST_DIR%\" >nul
+    echo   - anvil.exe
 ) else (
-    echo ERROR: ember.exe not found in %RELEASE_DIR%
+    echo ERROR: anvil.exe not found in %RELEASE_DIR%
     exit /b 1
 )
 
