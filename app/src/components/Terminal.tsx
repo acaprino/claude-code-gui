@@ -143,7 +143,7 @@ export default memo(function Terminal({
           if (!sessionIdRef.current) return;
           // Strip C0 control chars (except \t \n \r) to prevent escape injection,
           // then wrap in bracketed paste so the CLI treats it as pasted content.
-          const sanitized = text.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "");
+          const sanitized = text.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]/g, "");
           if (!sanitized) return;
           const bracketed = `\x1b[200~${sanitized}\x1b[201~`;
           writePty(sessionIdRef.current, bracketed).catch((err) => {

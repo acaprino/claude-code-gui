@@ -188,7 +188,10 @@ function NewTabPage({ tabId, onLaunch, onRequestClose, isActive }: NewTabPagePro
         case "F6":
           e.preventDefault();
           if (currentProjects[selectedIdxRef.current]) {
-            open(currentProjects[selectedIdxRef.current].path).catch((e) => console.error("open_in_explorer failed:", e));
+            const p = currentProjects[selectedIdxRef.current].path;
+            if (/^[a-zA-Z]:\\/.test(p) && !p.startsWith("\\\\")) {
+              open(p).catch((e) => console.warn("shell open failed:", e));
+            }
           }
           break;
         case "F7":

@@ -171,7 +171,6 @@ pub async fn record_usage(project_path: String) -> Result<(), String> {
     .map_err(|e| format!("Task failed: {e}"))?
 }
 
-
 #[tauri::command]
 pub async fn create_project(
     parent: String,
