@@ -69,3 +69,8 @@ commands.allow = ["save_session"]
 identifier = "allow-load-session"
 description = "Allows loading session state"
 commands.allow = ["load_session"]
+
+[[permission]]
+identifier = "allow-save-clipboard-image"
+description = "Allows saving clipboard image as temp PNG"
+commands.allow = ["save_clipboard_image"]

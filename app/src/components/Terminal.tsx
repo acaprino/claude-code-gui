@@ -190,6 +190,7 @@ export default memo(function Terminal({
             await writePty(sid, bracketed);
           } catch (err) {
             console.warn("Clipboard paste failed:", err);
+            xtermRef.current?.write("\x07"); // bell
           }
         })();
         return false;

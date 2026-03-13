@@ -29,6 +29,7 @@
     "core:window:allow-destroy",
     "clipboard-manager:allow-read-text",
     "clipboard-manager:allow-write-text",
+    "allow-save-clipboard-image",
     "shell:allow-open"
   ]
 }
