@@ -80,12 +80,21 @@ function imageToAscii(img: HTMLImageElement, cols: number): AsciiCell[][] {
   return grid;
 }
 
+// M6: Module-level cache so the ASCII grid is only computed once per cols value
+const gridCache = new Map<number, AsciiCell[][]>();
+
 const AsciiLogo = memo(function AsciiLogo({ cols = 60 }: { cols?: number }) {
-  const [grid, setGrid] = useState<AsciiCell[][] | null>(null);
+  const [grid, setGrid] = useState<AsciiCell[][] | null>(() => gridCache.get(cols) ?? null);
 
   useEffect(() => {
+    const cached = gridCache.get(cols);
+    if (cached) { setGrid(cached); return; }
     const img = new Image();
-    img.onload = () => setGrid(imageToAscii(img, cols));
+    img.onload = () => {
+      const result = imageToAscii(img, cols);
+      gridCache.set(cols, result);
+      setGrid(result);
+    };
     img.onerror = () => setGrid([]);
     img.src = "/icon.png";
   }, [cols]);

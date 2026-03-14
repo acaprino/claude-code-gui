@@ -183,6 +183,16 @@ export function useTabManager() {
     );
   }, []);
 
+  // H1: Dedicated callback that guards against redundant array creation
+  // when hasNewOutput is already true (high-frequency PTY output path).
+  const markNewOutput = useCallback((tabId: string) => {
+    setTabs((prev) => {
+      const target = prev.find((t) => t.id === tabId);
+      if (!target || target.hasNewOutput) return prev;
+      return prev.map((t) => t.id === tabId ? { ...t, hasNewOutput: true } : t);
+    });
+  }, []);
+
   // R6: Guard setTabs — skip array recreation if target tab has no new output
   const activateTab = useCallback(
     (tabId: string) => {
@@ -235,6 +245,7 @@ export function useTabManager() {
     toggleAboutTab,
     closeTab,
     updateTab,
+    markNewOutput,
     activateTab,
     nextTab,
     prevTab,

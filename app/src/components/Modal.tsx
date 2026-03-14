@@ -10,18 +10,22 @@ interface ModalProps {
 export default function Modal({ title, children, onClose }: ModalProps) {
   const backdropRef = useRef<HTMLDivElement>(null);
 
+  // M4: Stabilize onClose with ref so the Escape key effect doesn't re-register
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
         e.stopPropagation();
-        onClose();
+        onCloseRef.current();
       }
     };
     // Capture phase so it intercepts before NewTabPage's handler
     window.addEventListener("keydown", handleKey, true);
     return () => window.removeEventListener("keydown", handleKey, true);
-  }, [onClose]);
+  }, []);
 
   const handleBackdropClick = useCallback(
     (e: React.MouseEvent) => {

@@ -31,6 +31,10 @@
   --text-md: 14px;
   --text-lg: 16px;
   --text-xl: 18px;
+  --font-mono: "Cascadia Code", "JetBrains Mono", "Fira Code", "Consolas", monospace;
+  --status-bar-height: 28px;
+  --backdrop: color-mix(in srgb, var(--crust) 85%, transparent);
+  --shadow-modal: 0 8px 32px rgba(0, 0, 0, 0.5);
 }
 
 *, *::before, *::after {
@@ -44,10 +48,15 @@ html, body, #root {
   overflow: hidden;
   background: var(--bg);
   color: var(--text);
-  font-family: "Cascadia Code", "JetBrains Mono", "Fira Code", "Consolas", monospace;
+  font-family: var(--font-mono);
   font-size: 13px;
   color-scheme: dark;
   line-height: 1.4;
+}
+
+/* Browsers reset font-family on form controls — restore it once here */
+button, input, select {
+  font-family: var(--font-mono);
 }
 
 .app {
@@ -95,8 +104,8 @@ html, body, #root {
 /* Edge handles avoid tab bar (top) and status bar (bottom) */
 .resize-handle.top    { top: 0; left: 5px; right: 5px; height: 3px; cursor: n-resize; }
 .resize-handle.bottom { bottom: 0; left: 5px; right: 5px; height: 3px; cursor: s-resize; }
-.resize-handle.left   { left: 0; top: var(--tab-height); bottom: 28px; width: 4px; cursor: w-resize; }
-.resize-handle.right  { right: 0; top: var(--tab-height); bottom: 28px; width: 4px; cursor: e-resize; }
+.resize-handle.left   { left: 0; top: var(--tab-height); bottom: var(--status-bar-height); width: 4px; cursor: w-resize; }
+.resize-handle.right  { right: 0; top: var(--tab-height); bottom: var(--status-bar-height); width: 4px; cursor: e-resize; }
 .resize-handle.top-left     { top: 0; left: 0; width: 8px; height: 8px; cursor: nw-resize; }
 .resize-handle.top-right    { top: 0; right: 0; width: 8px; height: 8px; cursor: ne-resize; }
 .resize-handle.bottom-left  { bottom: 0; left: 0; width: 8px; height: 8px; cursor: sw-resize; }

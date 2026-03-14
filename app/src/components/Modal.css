@@ -1,11 +1,17 @@
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--backdrop);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: var(--z-modal);
+  animation: backdrop-in 0.15s ease-out;
+}
+
+@keyframes backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .modal {
@@ -13,11 +19,17 @@
   border: 1px solid var(--surface);
   border-radius: var(--radius-md);
   padding: var(--space-4);
-  min-width: 400px;
+  min-width: min(400px, calc(100vw - 2rem));
   max-width: 600px;
   max-height: 80vh;
   overflow-y: auto;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-modal);
+  animation: modal-in 0.2s ease-out;
+}
+
+@keyframes modal-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .modal-title {
@@ -46,13 +58,15 @@
   border-radius: var(--radius-sm);
   color: var(--text);
   font-size: var(--text-base);
-  font-family: "Cascadia Code", "Consolas", monospace;
   box-sizing: border-box;
+  transition: border-color 0.15s ease-out, box-shadow 0.15s ease-out;
 }
 
 .modal-input:focus {
   outline: none;
   border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent);
+  transition: border-color 0.15s ease-out, box-shadow 0.15s ease-out;
 }
 
 .modal-checkbox {
@@ -86,12 +100,16 @@
   color: var(--text);
   cursor: pointer;
   font-size: var(--text-sm);
-  font-family: "Cascadia Code", "Consolas", monospace;
   transition: background 0.15s, border-color 0.15s;
 }
 
 .modal-btn:hover {
   background: var(--hover-overlay);
+}
+
+.modal-btn:active {
+  transform: scale(0.97);
+  transition-duration: 0.05s;
 }
 
 .modal-btn.primary {
@@ -102,6 +120,12 @@
 
 .modal-btn.primary:hover {
   opacity: 0.9;
+  filter: brightness(1.1);
+}
+
+.modal-btn.primary:active {
+  filter: brightness(0.95);
+  transform: scale(0.97);
 }
 
 .modal-btn.danger {
@@ -111,7 +135,7 @@
 }
 
 .modal-btn.danger:hover {
-  background: rgba(243, 139, 168, 0.1);
+  background: color-mix(in srgb, var(--red) 10%, transparent);
 }
 
 /* Directory list in manage dirs modal */
@@ -128,7 +152,6 @@
   padding: var(--space-2);
   border-radius: var(--radius-sm);
   font-size: var(--text-sm);
-  font-family: "Cascadia Code", "Consolas", monospace;
   color: var(--text);
 }
 
@@ -156,7 +179,7 @@
 
 .dir-item .remove-btn:hover {
   color: var(--red);
-  background: rgba(243, 139, 168, 0.1);
+  background: color-mix(in srgb, var(--red) 10%, transparent);
 }
 
 .add-dir-row {
@@ -182,7 +205,6 @@
   color: var(--text-dim);
   flex-shrink: 0;
   margin-right: var(--space-2);
-  font-family: "Cascadia Code", "Consolas", monospace;
   cursor: pointer;
   white-space: nowrap;
   transition: color 0.12s, border-color 0.12s;
@@ -237,13 +259,16 @@
   border-color: var(--overlay1);
 }
 
+.theme-preview:active {
+  transform: scale(0.98);
+}
+
 .theme-preview.active {
   border-color: var(--accent);
 }
 
 .theme-preview-colors {
   padding: var(--space-2);
-  font-family: "Cascadia Code", "Consolas", monospace;
   font-size: var(--text-xs);
 }
 
@@ -269,5 +294,4 @@
   font-size: var(--text-xs);
   color: var(--text-dim);
   text-align: center;
-  font-family: "Cascadia Code", "Consolas", monospace;
 }

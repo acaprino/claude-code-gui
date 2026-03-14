@@ -8,7 +8,9 @@
   font-size: var(--text-sm);
   color: var(--text-dim);
   gap: var(--space-3);
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
   min-height: 28px;
 }
 
@@ -24,14 +26,13 @@
   background: color-mix(in srgb, var(--accent) 12%, transparent);
   padding: 1px var(--space-2);
   border-radius: 9999px;
-  font-family: "Cascadia Code", "Consolas", monospace;
   white-space: nowrap;
 }
 
 .status-right {
   display: flex;
   gap: var(--space-2);
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   overflow: hidden;
   align-items: center;
 }
@@ -45,7 +46,6 @@
   background: none;
   color: var(--text-dim);
   font-size: var(--text-sm);
-  font-family: "Cascadia Code", "Consolas", monospace;
   transition: background 0.15s ease-out, color 0.15s ease-out;
 }
 
@@ -69,7 +69,7 @@
 
 .status-btn.perms.on strong {
   color: var(--red);
-  animation: perms-pulse 2s ease-in-out infinite;
+  animation: perms-pulse 2s ease-in-out 3;
 }
 
 @keyframes perms-pulse {

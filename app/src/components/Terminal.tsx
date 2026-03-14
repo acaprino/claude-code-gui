@@ -71,6 +71,9 @@ export default memo(function Terminal({
 }: TerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
+  const [xtermReady, setXtermReady] = useState<XTerm | null>(null);
+  const bookmarksRef = useRef(new Set<number>());
+  const lastBookmarkLineRef = useRef(-1);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const fitAndResizeRef = useRef<(() => void) | null>(null);
   const exitedRef = useRef(false);
@@ -278,11 +281,31 @@ export default memo(function Terminal({
         return;
       }
       if (!sessionIdRef.current) return;
+      // Bookmark: when user presses Enter, record the buffer line as a prompt bookmark.
+      // Debounce: skip if same line as last bookmark (rapid Enter presses, empty confirms).
+      if (data === "\r") {
+        const line = xterm.buffer.active.baseY + xterm.buffer.active.cursorY;
+        if (line !== lastBookmarkLineRef.current) {
+          const lineContent = xterm.buffer.active.getLine(xterm.buffer.active.cursorY);
+          if (lineContent && lineContent.translateToString(true).trim().length > 0) {
+            lastBookmarkLineRef.current = line;
+            const bm = bookmarksRef.current;
+            // Prune bookmarks outside current buffer range
+            const minLine = xterm.buffer.active.baseY;
+            if (bm.size > 1500) {
+              for (const b of bm) { if (b < minLine) bm.delete(b); }
+            }
+            // Cap at 2000
+            if (bm.size < 2000) bm.add(line);
+          }
+        }
+      }
       writePty(sessionIdRef.current, data).catch(() => {});
     });
 
     xtermRef.current = xterm;
     fitAddonRef.current = fitAddon;
+    setXtermReady(xterm);
 
     let lastCols = 0;
     let lastRows = 0;
@@ -478,6 +501,7 @@ export default memo(function Terminal({
       }
       try { currentWebgl?.dispose(); } catch { /* ok */ }
       currentWebgl = null;
+      setXtermReady(null);
       xterm.dispose();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -529,5 +553,10 @@ export default memo(function Terminal({
     }
   }, [fontFamily, fontSize]);
 
-  return <div ref={containerRef} className="terminal-container" />;
+  return (
+    <div className="terminal-wrapper">
+      <div ref={containerRef} className="terminal-container" />
+      <Minimap xterm={xtermReady} isActive={isActive} bookmarksRef={bookmarksRef} />
+    </div>
+  );
 });

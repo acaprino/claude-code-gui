@@ -37,6 +37,46 @@ pub struct SessionRegistry {
     _job: Job,
 }
 
+/// Return the number of trailing bytes that form an incomplete UTF-8 sequence.
+/// This lets us hold them back and prepend them to the next read, avoiding
+/// replacement characters at chunk boundaries.
+fn incomplete_utf8_tail(buf: &[u8]) -> usize {
+    // An incomplete sequence can be at most 3 bytes (the start of a 4-byte char).
+    // Walk backwards from the end looking for a leading byte.
+    let len = buf.len();
+    // Check up to the last 3 bytes
+    let check_len = len.min(3);
+    for i in 1..=check_len {
+        let b = buf[len - i];
+        if b & 0x80 == 0 {
+            // ASCII byte — no incomplete sequence
+            return 0;
+        }
+        if b & 0xC0 == 0xC0 {
+            // This is a leading byte. Determine expected sequence length.
+            let expected = if b & 0xF8 == 0xF0 {
+                4
+            } else if b & 0xF0 == 0xE0 {
+                3
+            } else if b & 0xE0 == 0xC0 {
+                2
+            } else {
+                // Invalid leading byte — treat as complete to avoid holding forever
+                return 0;
+            };
+            if i < expected {
+                // We have fewer bytes than the sequence needs — incomplete
+                return i;
+            }
+            // Sequence is complete
+            return 0;
+        }
+        // 0x80..0xBF is a continuation byte — keep scanning for the lead byte
+    }
+    // All checked bytes are continuation bytes with no lead — give up, treat as complete
+    0
+}
+
 impl SessionRegistry {
     pub fn new() -> Result<Self, String> {
         let job = Job::create().map_err(|e| format!("Failed to create Job Object: {e}"))?;
@@ -80,13 +120,14 @@ impl SessionRegistry {
         // producing two Exit events and two updateTab calls with conflicting codes.
         let exit_sent = Arc::new(AtomicBool::new(false));
 
-        // Output reader thread with batching.
+        // Output reader thread with batching and UTF-8 boundary handling.
         //
         // Shutdown mechanism: when a session is killed via kill(), TerminateProcess
-        // is called on the child process. This breaks the pipe, causing ReadFile to
-        // return an error, which exits this loop. The Arc<PtySession> held by this
-        // thread is then dropped, allowing PtySession::drop to run and close all
-        // remaining handles once no other references exist.
+        // is called on the child process AND ClosePseudoConsole breaks the pipe,
+        // causing ReadFile to return an error, which exits this loop. The
+        // Arc<PtySession> held by this thread is then dropped, allowing
+        // PtySession::drop to run and close all remaining handles once no other
+        // references exist.
         let pty_reader = Arc::clone(&pty);
         let channel = on_event.clone();
         let reader_sid = session_id.clone();
@@ -97,6 +138,9 @@ impl SessionRegistry {
                 let mut buf = [0u8; 16384];
                 let mut accum: Vec<u8> = Vec::with_capacity(32768);
                 let mut last_flush = Instant::now();
+                // Remainder buffer for incomplete UTF-8 sequences at chunk boundaries.
+                // Holds at most 3 bytes (the start of a 2/3/4-byte sequence).
+                let mut utf8_remainder: Vec<u8> = Vec::with_capacity(4);
                 loop {
                     match pty_reader.read(&mut buf) {
                         Ok(0) => break,
@@ -109,6 +153,21 @@ impl SessionRegistry {
                             // process is idle and we should display output promptly.
                             let partial = n < buf_size;
                             if elapsed || full || partial {
+                                // Prepend any leftover bytes from the previous flush
+                                if !utf8_remainder.is_empty() {
+                                    let mut combined = std::mem::take(&mut utf8_remainder);
+                                    combined.append(&mut accum);
+                                    accum = combined;
+                                }
+
+                                // Check for an incomplete UTF-8 sequence at the tail
+                                let tail = incomplete_utf8_tail(&accum);
+                                if tail > 0 && tail < accum.len() {
+                                    let split_at = accum.len() - tail;
+                                    utf8_remainder.extend_from_slice(&accum[split_at..]);
+                                    accum.truncate(split_at);
+                                }
+
                                 let data = String::from_utf8_lossy(&std::mem::take(&mut accum)).into_owned();
                                 if channel.send(PtyEvent::Output { data }).is_err() {
                                     break;
@@ -118,6 +177,10 @@ impl SessionRegistry {
                         }
                         Err(_) => break,
                     }
+                }
+                // Flush any remaining data (including utf8_remainder)
+                if !utf8_remainder.is_empty() {
+                    accum.splice(0..0, utf8_remainder.drain(..));
                 }
                 if !accum.is_empty() {
                     let data = String::from_utf8_lossy(&accum).into_owned();
@@ -168,28 +231,43 @@ impl SessionRegistry {
         if data.len() > MAX_WRITE_SIZE {
             return Err(format!("Write size {} exceeds max {MAX_WRITE_SIZE}", data.len()));
         }
-        let sessions = self.sessions.lock().unwrap_or_else(|e| e.into_inner());
-        let entry = sessions
-            .get(session_id)
-            .ok_or_else(|| format!("Session {session_id} not found"))?;
-        entry.pty.write(data).map_err(|e| format!("Write failed: {e}"))
+        // Clone the Arc under the lock, then drop the lock before doing I/O.
+        // The per-session Mutex<HANDLE> inside PtySession serializes writes.
+        let pty = {
+            let sessions = self.sessions.lock().unwrap_or_else(|e| e.into_inner());
+            let entry = sessions
+                .get(session_id)
+                .ok_or_else(|| format!("Session {session_id} not found"))?;
+            Arc::clone(&entry.pty)
+        };
+        pty.write(data).map_err(|e| format!("Write failed: {e}"))
     }
 
     pub fn resize(&self, session_id: &str, cols: i16, rows: i16) -> Result<(), String> {
-        let sessions = self.sessions.lock().unwrap_or_else(|e| e.into_inner());
-        let entry = sessions
-            .get(session_id)
-            .ok_or_else(|| format!("Session {session_id} not found"))?;
-        entry.pty.resize(cols, rows).map_err(|e| format!("Resize failed: {e}"))
+        // Clone the Arc under the lock, then drop the lock before doing I/O.
+        let pty = {
+            let sessions = self.sessions.lock().unwrap_or_else(|e| e.into_inner());
+            let entry = sessions
+                .get(session_id)
+                .ok_or_else(|| format!("Session {session_id} not found"))?;
+            Arc::clone(&entry.pty)
+        };
+        pty.resize(cols, rows).map_err(|e| format!("Resize failed: {e}"))
     }
 
     pub fn kill(&self, session_id: &str) -> Result<(), String> {
-        let mut sessions = self.sessions.lock().unwrap_or_else(|e| e.into_inner());
-        if let Some(entry) = sessions.remove(session_id) {
-            entry.pty.kill();
-            Ok(())
-        } else {
-            Err(format!("Session {session_id} not found"))
+        let pty = {
+            let mut sessions = self.sessions.lock().unwrap_or_else(|e| e.into_inner());
+            sessions
+                .remove(session_id)
+                .map(|entry| entry.pty)
+        };
+        match pty {
+            Some(pty) => {
+                pty.kill();
+                Ok(())
+            }
+            None => Err(format!("Session {session_id} not found")),
         }
     }
 
@@ -208,9 +286,13 @@ impl SessionRegistry {
     }
 
     pub fn kill_all(&self) {
-        let mut sessions = self.sessions.lock().unwrap_or_else(|e| e.into_inner());
-        for (_, entry) in sessions.drain() {
-            entry.pty.kill();
+        // Drain all sessions under the lock, then kill outside the lock.
+        let entries: Vec<Arc<PtySession>> = {
+            let mut sessions = self.sessions.lock().unwrap_or_else(|e| e.into_inner());
+            sessions.drain().map(|(_, entry)| entry.pty).collect()
+        };
+        for pty in entries {
+            pty.kill();
         }
     }
 
@@ -226,38 +308,53 @@ impl SessionRegistry {
                     let elapsed_since_last = last_check.elapsed();
                     last_check = Instant::now();
 
-                    let mut sessions = registry.sessions.lock().unwrap_or_else(|e| e.into_inner());
-
                     // If significantly more time passed than the 10s sleep interval,
                     // the system was in standby/hibernate. Instant::elapsed() counts
                     // sleep time on Windows, but JS heartbeat timers are frozen during
                     // standby — so all sessions would appear stale. Reset heartbeats
                     // to give the frontend time to reconnect via visibilitychange.
-                    if elapsed_since_last > Duration::from_secs(30) {
-                        log_info!(
-                            "reaper: standby detected ({}s since last check), resetting {} heartbeats",
-                            elapsed_since_last.as_secs(),
-                            sessions.len()
-                        );
-                        let now = Instant::now();
-                        for entry in sessions.values_mut() {
-                            entry.last_heartbeat = now;
+                    {
+                        let mut sessions = registry.sessions.lock().unwrap_or_else(|e| e.into_inner());
+                        if elapsed_since_last > Duration::from_secs(30) {
+                            log_info!(
+                                "reaper: standby detected ({}s since last check), resetting {} heartbeats",
+                                elapsed_since_last.as_secs(),
+                                sessions.len()
+                            );
+                            let now = Instant::now();
+                            for entry in sessions.values_mut() {
+                                entry.last_heartbeat = now;
+                            }
+                            return;
                         }
-                        return;
+
+                        // Two-phase reap: collect stale IDs under the lock, then kill outside.
+                        // This avoids holding the registry mutex while calling kill(), which
+                        // does blocking Win32 calls (TerminateProcess, ClosePseudoConsole).
                     }
 
-                    let stale: Vec<String> = sessions
-                        .iter()
-                        .filter(|(_, entry)| {
-                            entry.last_heartbeat.elapsed() > Duration::from_secs(HEARTBEAT_TIMEOUT_SECS)
-                        })
-                        .map(|(id, _)| id.clone())
-                        .collect();
-                    for id in stale {
-                        if let Some(entry) = sessions.remove(&id) {
-                            log_info!("reaper: killing stale session {id} (heartbeat timeout)");
-                            entry.pty.kill();
-                        }
+                    // Phase 1: collect stale session IDs and their Arcs under the lock
+                    let stale: Vec<(String, Arc<PtySession>)> = {
+                        let mut sessions = registry.sessions.lock().unwrap_or_else(|e| e.into_inner());
+                        let stale_ids: Vec<String> = sessions
+                            .iter()
+                            .filter(|(_, entry)| {
+                                entry.last_heartbeat.elapsed() > Duration::from_secs(HEARTBEAT_TIMEOUT_SECS)
+                            })
+                            .map(|(id, _)| id.clone())
+                            .collect();
+                        stale_ids
+                            .into_iter()
+                            .filter_map(|id| {
+                                sessions.remove(&id).map(|entry| (id, entry.pty))
+                            })
+                            .collect()
+                    };
+
+                    // Phase 2: kill outside the lock
+                    for (id, pty) in stale {
+                        log_info!("reaper: killing stale session {id} (heartbeat timeout)");
+                        pty.kill();
                     }
                 }));
                 if result.is_err() {

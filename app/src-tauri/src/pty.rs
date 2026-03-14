@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 use std::io;
 use std::mem::{size_of, zeroed};
+use std::sync::Mutex;
 
 use windows::core::{PCWSTR, PWSTR};
 use windows::Win32::Foundation::*;
@@ -14,7 +15,9 @@ pub struct PtySession {
     pub hpc: HPCON,
     pub process_handle: HANDLE,
     pub thread_handle: HANDLE,
-    pub input_write: HANDLE,
+    /// Guarded by a Mutex for per-session write serialization, so that concurrent
+    /// callers (e.g. Tauri IPC thread + any future writer) do not race on WriteFile.
+    pub input_write: Mutex<HANDLE>,
     pub output_read: HANDLE,
     pub pid: u32,
     _attr_list_buf: Vec<u8>,
@@ -22,16 +25,13 @@ pub struct PtySession {
 
 // SAFETY: PtySession holds raw Windows HANDLEs which are `!Send` by default.
 // This is safe because:
-// - The Windows pipe handles (input_write, output_read) are used from separate
-//   threads but never concurrently on the same handle: input_write is only used
-//   by the main thread via write(), and output_read is only used by the dedicated
-//   reader thread via read().
+// - input_write is protected by a Mutex, ensuring serialized access from any thread.
+// - output_read is only used by the dedicated reader thread via read().
 // - process_handle and thread_handle are only used for wait/terminate operations
 //   which are thread-safe Win32 calls.
 // - hpc (pseudo console handle) is used for resize from the main thread and
-//   closed in Drop; ClosePseudoConsole is safe to call from any thread.
-// - The architecture guarantees single-writer access to input_write (frontend
-//   sends write_pty calls sequentially through Tauri IPC).
+//   closed via close_console() or Drop; ClosePseudoConsole is safe to call
+//   from any thread.
 unsafe impl Send for PtySession {}
 unsafe impl Sync for PtySession {}
 
@@ -45,6 +45,15 @@ fn create_pipe() -> io::Result<(HANDLE, HANDLE)> {
     Ok((read_handle, write_handle))
 }
 
+/// Helper to close a HANDLE if it is not null/invalid.
+fn close_handle_safe(h: HANDLE) {
+    if !h.is_invalid() && h != HANDLE::default() {
+        unsafe {
+            let _ = CloseHandle(h);
+        }
+    }
+}
+
 impl PtySession {
     /// Spawn a new process in a pseudo console.
     pub fn spawn(
@@ -55,18 +64,37 @@ impl PtySession {
         rows: i16,
     ) -> io::Result<Self> {
         let (pty_input_read, pty_input_write) = create_pipe()?;
-        let (pty_output_read, pty_output_write) = create_pipe()?;
-
-        let size = COORD { X: cols, Y: rows };
-        let hpc = unsafe {
-            CreatePseudoConsole(size, pty_input_read, pty_output_write, 0)
-                .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?
+        let (pty_output_read, pty_output_write) = match create_pipe() {
+            Ok(handles) => handles,
+            Err(e) => {
+                // Clean up the first pipe pair on failure
+                close_handle_safe(pty_input_read);
+                close_handle_safe(pty_input_write);
+                return Err(e);
+            }
         };
 
-        unsafe {
-            let _ = CloseHandle(pty_input_read);
-            let _ = CloseHandle(pty_output_write);
-        }
+        let size = COORD { X: cols, Y: rows };
+        let hpc = match unsafe {
+            CreatePseudoConsole(size, pty_input_read, pty_output_write, 0)
+        } {
+            Ok(hpc) => {
+                // These ends are now owned by the pseudo console
+                unsafe {
+                    let _ = CloseHandle(pty_input_read);
+                    let _ = CloseHandle(pty_output_write);
+                }
+                hpc
+            }
+            Err(e) => {
+                // Clean up all four pipe handles on failure
+                close_handle_safe(pty_input_read);
+                close_handle_safe(pty_input_write);
+                close_handle_safe(pty_output_read);
+                close_handle_safe(pty_output_write);
+                return Err(io::Error::new(io::ErrorKind::Other, e.to_string()));
+            }
+        };
 
         let mut attr_list_size: usize = 0;
         // First call to get required size -- expected to fail
@@ -83,10 +111,16 @@ impl PtySession {
         let attr_list =
             LPPROC_THREAD_ATTRIBUTE_LIST(attr_list_buf.as_mut_ptr() as *mut _);
 
-        unsafe {
+        if let Err(e) = unsafe {
             InitializeProcThreadAttributeList(Some(attr_list), 1, Some(0), &mut attr_list_size)
-                .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
+        } {
+            unsafe { ClosePseudoConsole(hpc); }
+            close_handle_safe(pty_input_write);
+            close_handle_safe(pty_output_read);
+            return Err(io::Error::new(io::ErrorKind::Other, e.to_string()));
+        }
 
+        if let Err(e) = unsafe {
             UpdateProcThreadAttribute(
                 attr_list,
                 0,
@@ -96,7 +130,14 @@ impl PtySession {
                 None,
                 None,
             )
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
+        } {
+            unsafe {
+                DeleteProcThreadAttributeList(attr_list);
+                ClosePseudoConsole(hpc);
+            }
+            close_handle_safe(pty_input_write);
+            close_handle_safe(pty_output_read);
+            return Err(io::Error::new(io::ErrorKind::Other, e.to_string()));
         }
 
         let mut si: STARTUPINFOEXW = unsafe { zeroed() };
@@ -124,7 +165,7 @@ impl PtySession {
         let work_dir_wide: Vec<u16> =
             working_dir.encode_utf16().chain(std::iter::once(0)).collect();
 
-        unsafe {
+        if let Err(e) = unsafe {
             CreateProcessW(
                 None,
                 Some(PWSTR(cmd_wide.as_mut_ptr())),
@@ -137,14 +178,21 @@ impl PtySession {
                 &si.StartupInfo as *const STARTUPINFOW,
                 &mut pi,
             )
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
+        } {
+            unsafe {
+                DeleteProcThreadAttributeList(attr_list);
+                ClosePseudoConsole(hpc);
+            }
+            close_handle_safe(pty_input_write);
+            close_handle_safe(pty_output_read);
+            return Err(io::Error::new(io::ErrorKind::Other, e.to_string()));
         }
 
         Ok(PtySession {
             hpc,
             process_handle: pi.hProcess,
             thread_handle: pi.hThread,
-            input_write: pty_input_write,
+            input_write: Mutex::new(pty_input_write),
             output_read: pty_output_read,
             pid: pi.dwProcessId,
             _attr_list_buf: attr_list_buf,
@@ -152,11 +200,12 @@ impl PtySession {
     }
 
     pub fn write(&self, data: &[u8]) -> io::Result<()> {
+        let handle = *self.input_write.lock().unwrap_or_else(|e| e.into_inner());
         let mut offset = 0;
         while offset < data.len() {
             let mut written: u32 = 0;
             unsafe {
-                WriteFile(self.input_write, Some(&data[offset..]), Some(&mut written), None)
+                WriteFile(handle, Some(&data[offset..]), Some(&mut written), None)
                     .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
             }
             if written == 0 {
@@ -197,9 +246,13 @@ impl PtySession {
         }
     }
 
+    /// Terminate the child process and close the pseudo console handle.
+    /// Closing the pseudo console breaks the output pipe, which unblocks
+    /// any reader thread blocked on ReadFile.
     pub fn kill(&self) {
         unsafe {
             let _ = TerminateProcess(self.process_handle, 1);
+            ClosePseudoConsole(self.hpc);
         }
     }
 }
@@ -212,10 +265,14 @@ impl Drop for PtySession {
             DeleteProcThreadAttributeList(
                 LPPROC_THREAD_ATTRIBUTE_LIST(self._attr_list_buf.as_mut_ptr() as *mut _),
             );
+            // Note: ClosePseudoConsole may have already been called by kill().
+            // Calling it again on an already-closed HPCON is harmless on Windows
+            // (it becomes a no-op on an invalid handle).
             ClosePseudoConsole(self.hpc);
             let _ = CloseHandle(self.process_handle);
             let _ = CloseHandle(self.thread_handle);
-            let _ = CloseHandle(self.input_write);
+            let handle = *self.input_write.lock().unwrap_or_else(|e| e.into_inner());
+            let _ = CloseHandle(handle);
             let _ = CloseHandle(self.output_read);
         }
     }

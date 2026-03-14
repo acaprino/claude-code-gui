@@ -1,9 +1,10 @@
 .tab-bar {
+  --tab-max-width: 200px;
   display: flex;
   align-items: center;
   background: var(--crust);
   height: var(--tab-height);
-  padding: 0 4px;
+  padding: 0 var(--space-1);
   gap: calc(var(--space-1) / 2);
   user-select: none;
   border-bottom: 1px solid var(--surface);
@@ -40,9 +41,8 @@
   color: var(--text-dim);
   cursor: pointer;
   white-space: nowrap;
-  max-width: 200px;
+  max-width: var(--tab-max-width);
   transition: background 0.15s ease-out, color 0.15s ease-out;
-  will-change: background;
   animation: tab-enter 0.2s ease-out;
 }
 
@@ -68,7 +68,7 @@
   }
   to {
     opacity: 1;
-    max-width: 200px;
+    max-width: var(--tab-max-width);
     padding-left: var(--space-3);
     padding-right: var(--space-3);
   }
@@ -157,7 +157,7 @@
 }
 
 .tab-close:active {
-  background: rgba(255, 255, 255, 0.15);
+  background: color-mix(in srgb, var(--text) 15%, transparent);
   transform: scale(0.9);
 }
 
@@ -212,7 +212,7 @@
 
 .win-btn.close:hover {
   background: var(--red);
-  color: #fff;
+  color: var(--crust);
 }
 
 .tab:focus-visible {

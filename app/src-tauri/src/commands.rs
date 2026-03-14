@@ -76,7 +76,7 @@ pub async fn spawn_tool(
 }
 
 #[tauri::command]
-pub async fn write_pty(
+pub fn write_pty(
     registry: State<'_, Arc<SessionRegistry>>,
     session_id: String,
     data: String,
@@ -85,7 +85,7 @@ pub async fn write_pty(
 }
 
 #[tauri::command]
-pub async fn resize_pty(
+pub fn resize_pty(
     registry: State<'_, Arc<SessionRegistry>>,
     session_id: String,
     cols: i16,
@@ -100,7 +100,7 @@ pub async fn resize_pty(
 }
 
 #[tauri::command]
-pub async fn kill_session(
+pub fn kill_session(
     registry: State<'_, Arc<SessionRegistry>>,
     session_id: String,
 ) -> Result<(), String> {
@@ -109,7 +109,7 @@ pub async fn kill_session(
 }
 
 #[tauri::command]
-pub async fn heartbeat(
+pub fn heartbeat(
     registry: State<'_, Arc<SessionRegistry>>,
     session_id: String,
 ) -> Result<(), String> {
@@ -117,7 +117,7 @@ pub async fn heartbeat(
 }
 
 #[tauri::command]
-pub async fn active_session_count(
+pub fn active_session_count(
     registry: State<'_, Arc<SessionRegistry>>,
 ) -> Result<usize, String> {
     Ok(registry.active_count())

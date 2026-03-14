@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useMemo } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useTabManager } from "./hooks/useTabManager";
 import { ProjectsProvider, useProjectsContext } from "./contexts/ProjectsContext";
@@ -21,6 +21,7 @@ function AppContent() {
     toggleAboutTab,
     closeTab,
     updateTab,
+    markNewOutput,
     activateTab,
     nextTab,
     prevTab,
@@ -36,9 +37,8 @@ function AppContent() {
     return addTab();
   }, [addTab, setFilter]);
 
-  // Update window title — depend only on fields that affect the title,
-  // not the entire tabs array (which changes on every hasNewOutput toggle)
-  const terminalCount = tabs.filter((t) => t.type === "terminal").length;
+  // H2: Memoize terminal count to avoid refiltering on every render
+  const terminalCount = useMemo(() => tabs.filter((t) => t.type === "terminal").length, [tabs]);
   useEffect(() => {
     if (activeTab.type === "terminal" && activeTab.projectName) {
       const suffix = terminalCount > 1 ? ` (+${terminalCount - 1} tabs)` : "";
@@ -88,10 +88,10 @@ function AppContent() {
     [updateTab],
   );
 
-  // Stable callbacks for Terminal — avoids re-creating closures every render
+  // H1: Use markNewOutput which guards against redundant array creation
   const handleNewOutput = useCallback((tabId: string) => {
-    updateTab(tabId, { hasNewOutput: true });
-  }, [updateTab]);
+    markNewOutput(tabId);
+  }, [markNewOutput]);
 
   const handleExit = useCallback((tabId: string, code: number) => {
     updateTab(tabId, { exitCode: code });
@@ -105,20 +105,28 @@ function AppContent() {
     console.error(`Tab ${tabId} error:`, msg);
   }, []);
 
-  const startResize = useCallback((direction: "North" | "South" | "East" | "West" | "NorthEast" | "NorthWest" | "SouthEast" | "SouthWest") => {
-    appWindow.startResizeDragging(direction);
-  }, []);
+  // H4: Memoize resize handlers to avoid creating new arrow functions every render
+  const resizeHandlers = useMemo(() => ({
+    N:  () => appWindow.startResizeDragging("North"),
+    S:  () => appWindow.startResizeDragging("South"),
+    E:  () => appWindow.startResizeDragging("East"),
+    W:  () => appWindow.startResizeDragging("West"),
+    NE: () => appWindow.startResizeDragging("NorthEast"),
+    NW: () => appWindow.startResizeDragging("NorthWest"),
+    SE: () => appWindow.startResizeDragging("SouthEast"),
+    SW: () => appWindow.startResizeDragging("SouthWest"),
+  }), []);
 
   return (
     <div className="app">
-      <div className="resize-handle top" onMouseDown={() => startResize("North")} />
-      <div className="resize-handle bottom" onMouseDown={() => startResize("South")} />
-      <div className="resize-handle left" onMouseDown={() => startResize("West")} />
-      <div className="resize-handle right" onMouseDown={() => startResize("East")} />
-      <div className="resize-handle top-left" onMouseDown={() => startResize("NorthWest")} />
-      <div className="resize-handle top-right" onMouseDown={() => startResize("NorthEast")} />
-      <div className="resize-handle bottom-left" onMouseDown={() => startResize("SouthWest")} />
-      <div className="resize-handle bottom-right" onMouseDown={() => startResize("SouthEast")} />
+      <div className="resize-handle top" onMouseDown={resizeHandlers.N} />
+      <div className="resize-handle bottom" onMouseDown={resizeHandlers.S} />
+      <div className="resize-handle left" onMouseDown={resizeHandlers.W} />
+      <div className="resize-handle right" onMouseDown={resizeHandlers.E} />
+      <div className="resize-handle top-left" onMouseDown={resizeHandlers.NW} />
+      <div className="resize-handle top-right" onMouseDown={resizeHandlers.NE} />
+      <div className="resize-handle bottom-left" onMouseDown={resizeHandlers.SW} />
+      <div className="resize-handle bottom-right" onMouseDown={resizeHandlers.SE} />
       <TabBar
         tabs={tabs}
         activeTabId={activeTabId}

@@ -25,7 +25,7 @@
 .about-logo {
   font-size: var(--text-xs);
   line-height: 1.2;
-  font-family: "Cascadia Code", "Consolas", monospace;
+
   white-space: pre;
   text-align: left;
   color: var(--text-dim);
@@ -44,7 +44,7 @@
 
 .gsd-banner-title {
   color: var(--text);
-  font-family: "Cascadia Code", "Consolas", monospace;
+
   font-size: var(--text-sm);
   font-weight: bold;
   padding: var(--space-2) 0;
@@ -60,7 +60,7 @@
 
 .gsd-box pre {
   color: var(--text-dim);
-  font-family: "Cascadia Code", "Consolas", monospace;
+
   font-size: var(--text-sm);
   line-height: 1.6;
   white-space: pre;
@@ -78,7 +78,7 @@
 /* Plain text blocks */
 .gsd-text {
   color: var(--text-dim);
-  font-family: "Cascadia Code", "Consolas", monospace;
+
   font-size: var(--text-sm);
   line-height: 1.6;
   white-space: pre;
@@ -92,7 +92,7 @@
 
 .gsd-footer-text {
   color: var(--text-dim);
-  font-family: "Cascadia Code", "Consolas", monospace;
+
   font-size: var(--text-sm);
   padding: var(--space-2) 0;
   text-align: center;
