@@ -43,17 +43,17 @@ export default memo(function ProjectList({
   if (projects.length === 0) {
     return (
       <div className="project-list-empty">
-        <div className="empty-icon">&#128269;</div>
+        <div className="empty-icon" aria-hidden="true">&#128269;</div>
         <div className="empty-title">No projects found</div>
         <div className="empty-hint">
-          Press <kbd>F7</kbd> to add a directory or <kbd>F5</kbd> to create a project
+          Press <kbd>Ctrl+,</kbd> to configure directories or <kbd>F5</kbd> to create a project
         </div>
       </div>
     );
   }
 
   return (
-    <div className="project-list" ref={listRef} role="listbox">
+    <div className="project-list" ref={listRef} role="listbox" aria-label="Projects">
       {projects.map((project, idx) => (
         <div
           key={project.path}

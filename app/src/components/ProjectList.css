@@ -1,7 +1,7 @@
 .project-list {
   flex: 1;
   overflow-y: auto;
-  padding: var(--space-1) var(--space-4);
+  padding: var(--space-2) var(--space-4);
   scrollbar-width: thin;
   scrollbar-color: var(--surface) transparent;
   scroll-behavior: smooth;
@@ -114,11 +114,6 @@
   animation: fade-in 0.15s ease-out;
 }
 
-@keyframes fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
 .project-main {
   display: flex;
   align-items: center;
@@ -166,7 +161,7 @@
 }
 
 .project-path {
-  opacity: 0.6;
+  color: var(--overlay0);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

@@ -1,47 +1,8 @@
 .new-tab-page {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
   height: 100%;
-}
-
-.new-tab-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: var(--space-3) var(--space-4);
-  border-bottom: 1px solid var(--surface);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-  gap: var(--space-4);
-  flex-wrap: wrap;
-}
-
-.new-tab-header h2 {
-  font-size: var(--text-lg);
-  font-weight: 600;
-  color: var(--accent);
-  letter-spacing: 0.5px;
-}
-
-.shortcut-hints {
-  font-size: var(--text-sm);
-  color: var(--text-dim);
-
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
-  display: flex;
-  gap: var(--space-3);
-  flex-wrap: wrap;
-}
-
-.shortcut-hints kbd {
-  padding: 1px 5px;
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  font-size: var(--text-xs);
-
-  margin-right: 2px;
+  min-height: 0;
 }
 
 /* Error state */

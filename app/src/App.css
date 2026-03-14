@@ -14,6 +14,7 @@
   --tab-height: 42px;
   --radius-sm: 4px;
   --radius-md: 6px;
+  --space-0: 2px;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -21,8 +22,8 @@
   --space-6: 24px;
   --space-8: 32px;
   --space-12: 48px;
-  --hover-overlay: rgba(255, 255, 255, 0.1);
-  --hover-overlay-subtle: rgba(255, 255, 255, 0.05);
+  --hover-overlay: color-mix(in srgb, var(--text) 10%, transparent);
+  --hover-overlay-subtle: color-mix(in srgb, var(--text) 5%, transparent);
   --z-resize: 100;
   --z-modal: 1000;
   --text-xs: 10px;
@@ -32,9 +33,9 @@
   --text-lg: 16px;
   --text-xl: 18px;
   --font-mono: "Cascadia Code", "JetBrains Mono", "Fira Code", "Consolas", monospace;
-  --status-bar-height: 28px;
+  --info-strip-height: 24px;
   --backdrop: color-mix(in srgb, var(--crust) 85%, transparent);
-  --shadow-modal: 0 8px 32px rgba(0, 0, 0, 0.5);
+  --shadow-modal: 0 8px 32px color-mix(in srgb, var(--crust) 80%, transparent);
 }
 
 *, *::before, *::after {
@@ -49,7 +50,7 @@ html, body, #root {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: var(--text-base);
   color-scheme: dark;
   line-height: 1.4;
   transition: background-color 150ms ease-out, color 150ms ease-out;
@@ -57,11 +58,16 @@ html, body, #root {
 
 /* Theme crossfade: smooth color transitions on structural containers when switching themes */
 .tab-bar,
-.status-bar,
+.session-config,
+.info-strip,
 .new-tab-page,
 .modal-backdrop,
 .modal,
-.project-item {
+.project-item,
+.segmented,
+.segmented__item,
+.settings-content,
+.font-preview {
   transition: background-color 150ms ease-out, color 150ms ease-out, border-color 150ms ease-out;
 }
 
@@ -115,8 +121,8 @@ button, input, select {
 /* Edge handles avoid tab bar (top) and status bar (bottom) */
 .resize-handle.top    { top: 0; left: 5px; right: 5px; height: 3px; cursor: n-resize; }
 .resize-handle.bottom { bottom: 0; left: 5px; right: 5px; height: 3px; cursor: s-resize; }
-.resize-handle.left   { left: 0; top: var(--tab-height); bottom: var(--status-bar-height); width: 4px; cursor: w-resize; }
-.resize-handle.right  { right: 0; top: var(--tab-height); bottom: var(--status-bar-height); width: 4px; cursor: e-resize; }
+.resize-handle.left   { left: 0; top: var(--tab-height); bottom: var(--info-strip-height); width: 4px; cursor: w-resize; }
+.resize-handle.right  { right: 0; top: var(--tab-height); bottom: var(--info-strip-height); width: 4px; cursor: e-resize; }
 .resize-handle.top-left     { top: 0; left: 0; width: 8px; height: 8px; cursor: nw-resize; }
 .resize-handle.top-right    { top: 0; right: 0; width: 8px; height: 8px; cursor: ne-resize; }
 .resize-handle.bottom-left  { bottom: 0; left: 0; width: 8px; height: 8px; cursor: sw-resize; }
@@ -142,15 +148,16 @@ button, input, select {
 .retro .tab.has-output::before { border-radius: 0; }
 .retro .theme-swatch-bar span { border-radius: 0; }
 .retro .status-filter { border-radius: 0; }
-.retro .shortcut-hints kbd { border-radius: 0; border: 1px solid var(--overlay0); }
+.retro .segmented { border-radius: 0; }
+.retro .segmented__item { border-radius: 0; }
+.retro .info-strip { border-top: 2px solid var(--overlay0); }
 .retro .retry-button { border-radius: 0; border-width: 2px; }
 .retro .dir-mode-badge { border-radius: 0; }
 .retro .empty-hint kbd { border-radius: 0; }
 
 /* Thicker structural borders */
 .retro .tab-bar { border-bottom: 2px solid var(--overlay0); }
-.retro .status-bar { border-top: 2px solid var(--overlay0); }
-.retro .new-tab-header { border-bottom: 2px solid var(--overlay0); box-shadow: none; }
+.retro .session-config { border-bottom: 2px solid var(--overlay0); }
 
 /* Active tab: compensate for 2px border (was -1px for 1px border) */
 .retro .tab.active { margin-bottom: -2px; padding-bottom: 2px; }
@@ -161,8 +168,9 @@ button, input, select {
 .retro .tab-add,
 .retro .win-btn,
 .retro .tab-bar,
-.retro .status-bar,
-.retro .status-btn,
+.retro .session-config,
+.retro .segmented__item,
+.retro .info-strip,
 .retro .new-tab-page,
 .retro .modal-backdrop,
 .retro .modal,
@@ -178,7 +186,7 @@ button, input, select {
 .retro .tab.has-output::before,
 .retro .skeleton-row,
 .retro .terminal-container,
-.retro .status-btn.perms.on strong { animation: none; }
+.retro .session-config__toggle { animation: none; }
 
 /* Terminal-style font — Matrix hacker aesthetic */
 .retro * { font-family: "Cascadia Mono", "Consolas", "Lucida Console", monospace !important; }
@@ -212,6 +220,12 @@ button, input, select {
 @keyframes retro-blink {
   0%, 50% { opacity: 1; }
   51%, 100% { opacity: 0; }
+}
+
+/* Shared utility keyframes — defined once, used by multiple components */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 @media (prefers-reduced-motion: reduce) {

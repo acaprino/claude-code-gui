@@ -50,12 +50,9 @@ sonnet / opus / haiku / sonnet [1M] / opus [1M]
 - **F4**: Toggle skip-permissions
 - **F5**: Create new project
 - **F6**: Open project in Explorer
-- **F7**: Manage project directories
 - **F8**: Label selected project
-- **F9**: Theme picker
 - **F10**: Quick launch (arbitrary directory)
-- **F11**: Font settings
-- **F12**: About page
+- **Ctrl+,**: Open settings (themes, font, directories, behavior)
 - **Enter**: Launch selected project
 - **Esc**: Clear filter / close tab
 - **Backspace**: Delete last filter character
@@ -71,7 +68,7 @@ CSS custom properties in `App.css` `:root`:
 - Radii: `--radius-sm` (4px), `--radius-md` (6px)
 - Overlays: `--hover-overlay`, `--hover-overlay-subtle`, `--backdrop`
 - Z-index: `--z-resize`, `--z-modal`
-- Layout: `--tab-height`, `--status-bar-height`, `--tab-max-width`
+- Layout: `--tab-height`, `--info-strip-height`, `--tab-max-width`
 - Font: `--font-mono`
 
 ## Architecture Notes

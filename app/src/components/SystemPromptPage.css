@@ -24,6 +24,7 @@
 
 .sp-item {
   border: 1px solid var(--overlay0);
+  border-radius: var(--radius-sm);
   padding: var(--space-3) var(--space-4);
   transition: border-color 0.15s;
 }
@@ -74,7 +75,6 @@
 }
 
 .sp-item-preview {
-  color: var(--text-dim);
   font-size: var(--text-xs);
   line-height: 1.5;
   margin: var(--space-2) 0 0;
@@ -89,6 +89,7 @@
 .sp-btn {
   background: none;
   border: 1px solid var(--overlay0);
+  border-radius: var(--radius-sm);
   color: var(--text-dim);
   font-size: var(--text-xs);
   padding: var(--space-1) var(--space-2);
@@ -142,6 +143,7 @@
 /* ━━━ Editor ━━━ */
 .sp-editor {
   border: 1px solid var(--overlay0);
+  border-radius: var(--radius-sm);
   padding: var(--space-4);
   margin: var(--space-4) 0;
 }
@@ -155,24 +157,27 @@
 
 .sp-input {
   width: 100%;
-  background: var(--mantle);
+  background: var(--surface);
   border: 1px solid var(--overlay0);
+  border-radius: var(--radius-sm);
   color: var(--text);
   font-size: var(--text-sm);
   padding: var(--space-2) var(--space-3);
   margin-bottom: var(--space-3);
   outline: none;
-  box-sizing: border-box;
+  transition: border-color 0.15s ease-out, box-shadow 0.15s ease-out;
 }
 
 .sp-input:focus {
   border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent);
 }
 
 .sp-textarea {
   width: 100%;
-  background: var(--mantle);
+  background: var(--surface);
   border: 1px solid var(--overlay0);
+  border-radius: var(--radius-sm);
   color: var(--text);
   font-size: var(--text-sm);
   padding: var(--space-3);
@@ -180,11 +185,12 @@
   min-height: 200px;
   outline: none;
   line-height: 1.6;
-  box-sizing: border-box;
+  transition: border-color 0.15s ease-out, box-shadow 0.15s ease-out;
 }
 
 .sp-textarea:focus {
   border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent);
 }
 
 .sp-editor-actions {
