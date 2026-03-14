@@ -217,12 +217,35 @@ impl SessionRegistry {
     pub fn start_reaper(self: &Arc<Self>) {
         let registry = Arc::clone(self);
         thread::spawn(move || {
+            let mut last_check = Instant::now();
             loop {
                 thread::sleep(Duration::from_secs(10));
                 // catch_unwind ensures the reaper never dies from a panic.
                 // If one iteration panics, we log and continue the next cycle.
                 let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    let elapsed_since_last = last_check.elapsed();
+                    last_check = Instant::now();
+
                     let mut sessions = registry.sessions.lock().unwrap_or_else(|e| e.into_inner());
+
+                    // If significantly more time passed than the 10s sleep interval,
+                    // the system was in standby/hibernate. Instant::elapsed() counts
+                    // sleep time on Windows, but JS heartbeat timers are frozen during
+                    // standby — so all sessions would appear stale. Reset heartbeats
+                    // to give the frontend time to reconnect via visibilitychange.
+                    if elapsed_since_last > Duration::from_secs(30) {
+                        log_info!(
+                            "reaper: standby detected ({}s since last check), resetting {} heartbeats",
+                            elapsed_since_last.as_secs(),
+                            sessions.len()
+                        );
+                        let now = Instant::now();
+                        for entry in sessions.values_mut() {
+                            entry.last_heartbeat = now;
+                        }
+                        return;
+                    }
+
                     let stale: Vec<String> = sessions
                         .iter()
                         .filter(|(_, entry)| {
