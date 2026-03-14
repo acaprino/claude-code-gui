@@ -5,6 +5,7 @@ use tauri::State;
 use crate::tools;
 use crate::projects::{self, ProjectInfo, Settings, UsageData};
 use crate::session::{PtyEvent, SessionRegistry};
+use crate::usage_stats::{self, TokenUsageStats};
 use crate::watcher::ProjectWatcher;
 
 #[tauri::command]
@@ -283,6 +284,13 @@ pub async fn save_clipboard_image() -> Result<String, String> {
     })
     .await
     .map_err(|e| format!("Task failed: {e}"))?
+}
+
+#[tauri::command]
+pub async fn get_token_usage() -> Result<TokenUsageStats, String> {
+    tokio::task::spawn_blocking(|| usage_stats::compute_usage(7))
+        .await
+        .map_err(|e| format!("Task failed: {e}"))?
 }
 
 #[tauri::command]

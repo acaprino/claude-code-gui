@@ -1,6 +1,6 @@
 export interface Tab {
   id: string;
-  type: "new-tab" | "terminal" | "about";
+  type: "new-tab" | "terminal" | "about" | "usage";
   projectPath?: string;
   projectName?: string;
   toolIdx?: number;

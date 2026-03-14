@@ -9,6 +9,7 @@ mod marketplace;
 mod projects;
 mod pty;
 mod session;
+mod usage_stats;
 mod watcher;
 
 use std::sync::Arc;
@@ -95,6 +96,7 @@ fn main() {
             commands::load_session,
             commands::set_window_corner_preference,
             commands::save_clipboard_image,
+            commands::get_token_usage,
         ])
         .on_window_event(move |window, event| {
             if let tauri::WindowEvent::CloseRequested { .. } = event {

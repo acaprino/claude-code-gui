@@ -150,6 +150,36 @@ export function useTabManager() {
     });
   }, []);
 
+  const toggleUsageTab = useCallback(() => {
+    setTabs((prev) => {
+      const existing = prev.find((t) => t.type === "usage");
+      if (existing) {
+        if (existing.id === activeTabIdRef.current) {
+          const next = prev.filter((t) => t.id !== existing.id);
+          if (next.length === 0) {
+            const newTab = createNewTab();
+            setActiveTabId(newTab.id);
+            return [newTab];
+          }
+          const idx = prev.findIndex((t) => t.id === existing.id);
+          const newIdx = Math.min(idx, next.length - 1);
+          setActiveTabId(next[newIdx].id);
+          return next;
+        }
+        setActiveTabId(existing.id);
+        return prev;
+      }
+      const tab: Tab = {
+        id: crypto.randomUUID(),
+        type: "usage",
+        hasNewOutput: false,
+        exitCode: null,
+      };
+      setActiveTabId(tab.id);
+      return [...prev, tab];
+    });
+  }, []);
+
   const closeTab = useCallback(
     (tabId: string) => {
       setTabs((prev) => {
@@ -243,6 +273,7 @@ export function useTabManager() {
     activeTabId,
     addTab,
     toggleAboutTab,
+    toggleUsageTab,
     closeTab,
     updateTab,
     markNewOutput,

@@ -58,7 +58,9 @@ export default memo(function TabBar({ tabs, activeTabId, onActivate, onClose, on
               ? `${tab.projectName ?? "Terminal"}${tab.modelIdx != null ? ` \u2014 ${MODELS[tab.modelIdx].display}` : ""}`
               : tab.type === "about"
                 ? "About"
-                : "New Tab";
+                : tab.type === "usage"
+                  ? "Usage"
+                  : "New Tab";
 
           return (
             <div

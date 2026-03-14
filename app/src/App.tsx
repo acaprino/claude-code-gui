@@ -6,6 +6,7 @@ import TabBar from "./components/TabBar";
 import Terminal from "./components/Terminal";
 import NewTabPage from "./components/NewTabPage";
 import AboutPage from "./components/AboutPage";
+import UsagePage from "./components/UsagePage";
 import ErrorBoundary from "./components/ErrorBoundary";
 import "./App.css";
 
@@ -19,6 +20,7 @@ function AppContent() {
     activeTabId,
     addTab,
     toggleAboutTab,
+    toggleUsageTab,
     closeTab,
     updateTab,
     markNewOutput,
@@ -66,12 +68,15 @@ function AppContent() {
       } else if (e.key === "F12") {
         e.preventDefault();
         toggleAboutTab();
+      } else if (e.ctrlKey && e.key === "u") {
+        e.preventDefault();
+        toggleUsageTab();
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [addTabAndResetFilter, toggleAboutTab, closeTab, activeTabId, nextTab, prevTab]);
+  }, [addTabAndResetFilter, toggleAboutTab, toggleUsageTab, closeTab, activeTabId, nextTab, prevTab]);
 
   const handleLaunch = useCallback(
     (tabId: string, projectPath: string, projectName: string, toolIdx: number, modelIdx: number, effortIdx: number, skipPerms: boolean, autocompact: boolean) => {
@@ -157,6 +162,14 @@ function AppContent() {
               ) : tab.type === "about" ? (
                 <ErrorBoundary tabId={tab.id} onClose={closeTab}>
                   <AboutPage
+                    tabId={tab.id}
+                    onRequestClose={closeTab}
+                    isActive={isActive}
+                  />
+                </ErrorBoundary>
+              ) : tab.type === "usage" ? (
+                <ErrorBoundary tabId={tab.id} onClose={closeTab}>
+                  <UsagePage
                     tabId={tab.id}
                     onRequestClose={closeTab}
                     isActive={isActive}
