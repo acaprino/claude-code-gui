@@ -26,9 +26,8 @@ const MAX_BOOKMARK_TEXT = 200;
 const BANNER_DASHES = "\u2500\u2500\u2500\u2500\u2500";
 const BANNER_DASH_THRESHOLD = 3;
 const BANNER_BUF_MAX = 8192;
-/** How long (ms) to strip cursor-repositioned status bar output after the
- *  banner is consumed. Prevents Claude's status from overwriting the Anvil logo. */
-const BANNER_COOLDOWN_MS = 4000;
+/** Minimum time (ms) to display the Anvil logo overlay before hiding it. */
+const LOGO_MIN_MS = 2000;
 /** How long (ms) after a resize to ignore buffer shrinkage — reflow (line
  *  unwrapping) reduces buffer.active.length without content being cleared. */
 const RESIZE_REFLOW_MS = 500;
@@ -131,7 +130,6 @@ export default memo(function Terminal({
   const containerRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
   const [xtermReady, setXtermReady] = useState<XTerm | null>(null);
-  const [showLogo, setShowLogo] = useState(true);
   const bookmarksRef = useRef(new Map<number, string>());
   const lastBookmarkLineRef = useRef(-1);
   const prevBufferLenRef = useRef(0);
@@ -150,7 +148,10 @@ export default memo(function Terminal({
   const onExitRef = useRef(onExit);
   const onErrorRef = useRef(onError);
   const pasteInFlightRef = useRef(false);
+  const [showLogo, setShowLogo] = useState(true);
   const showLogoRef = useRef(true);
+  const logoHideTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const logoOverlayRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     isActiveRef.current = isActive;
@@ -185,6 +186,7 @@ export default memo(function Terminal({
       fontSize: fontSize || 14,
       fontFamily: fontFamily ? `'${fontFamily}', 'Consolas', monospace` : "'Cascadia Code', 'Consolas', monospace",
       theme: getXtermTheme(themeIdx),
+      allowProposedApi: true, // Required by Unicode11Addon
     });
 
     const fitAddon = new FitAddon();
@@ -311,7 +313,7 @@ export default memo(function Terminal({
         } catch (err) {
           console.warn("Clipboard paste failed:", err);
           xtermRef.current?.write("\x07"); // bell
-          const msg = err instanceof Error ? err.message : String(err);
+          const msg = (err instanceof Error ? err.message : String(err)).replace(/\x1b/g, "");
           xtermRef.current?.write(`\r\n\x1b[33m[paste failed: ${msg}]\x1b[0m`);
         }
       } finally {
@@ -477,15 +479,33 @@ export default memo(function Terminal({
       // For Claude (toolIdx 0), buffer initial output to strip the built-in
       // banner (▐▛███▜▌ block chars) — Anvil shows its own logo instead.
       let bannerBuf = toolIdx === 0 ? "" : null;
-      const hideLogo = () => {
-        if (showLogoRef.current) {
-          showLogoRef.current = false;
+      const logoShownAt = Date.now();
+      const fadeOutLogo = () => {
+        if (cancelled) return;
+        showLogoRef.current = false;
+        // Add fading class for CSS transition, then remove from DOM after transition
+        const el = logoOverlayRef.current;
+        if (el) {
+          el.classList.add("fading");
+          el.addEventListener("transitionend", () => setShowLogo(false), { once: true });
+          // Fallback: remove after 500ms if transitionend doesn't fire
+          setTimeout(() => { if (!cancelled) setShowLogo(false); }, 500);
+        } else {
           setShowLogo(false);
         }
       };
-      // After banner is stripped, briefly suppress cursor-repositioned output
-      // to prevent Claude's status bar from overwriting the Anvil logo.
-      let bannerCooldownEnd = 0;
+      const hideLogo = () => {
+        if (cancelled || !showLogoRef.current) return;
+        const elapsed = Date.now() - logoShownAt;
+        if (elapsed < LOGO_MIN_MS) {
+          // Ensure logo is visible for at least LOGO_MIN_MS
+          if (!logoHideTimerRef.current) {
+            logoHideTimerRef.current = setTimeout(fadeOutLogo, LOGO_MIN_MS - elapsed);
+          }
+          return;
+        }
+        fadeOutLogo();
+      };
       // Debounced cursor show — hide during all output, show only after idle.
       // Prevents the cursor from flickering at intermediate write positions.
 
@@ -523,7 +543,6 @@ export default memo(function Terminal({
                 const nlAfter = bannerBuf.indexOf("\n", idx);
                 const rest = nlAfter !== -1 ? bannerBuf.slice(nlAfter + 1) : "";
                 bannerBuf = null;
-                bannerCooldownEnd = Date.now() + BANNER_COOLDOWN_MS;
                 hideLogo();
                 // Filter rest through same cooldown logic — it may contain
                 // CUP-positioned status bar output that would overwrite the logo.
@@ -539,24 +558,6 @@ export default memo(function Terminal({
               }
             }
             return;
-          }
-          // During post-banner cooldown, strip cursor-repositioned sequences
-          // (Claude's status bar drawing) from data chunks. Non-cursor output
-          // (prompt) passes through and ends the cooldown early.
-          if (bannerCooldownEnd) {
-            if (Date.now() >= bannerCooldownEnd) {
-              bannerCooldownEnd = 0;
-            } else if (CURSOR_MOVE_RE.test(data)) {
-              // Strip cursor-positioning and all ANSI sequences, then check if
-              // any printable text remains. If not, this is pure status bar
-              // repositioning — drop it to prevent logo overlap. If printable
-              // content exists (e.g. the prompt), end cooldown and write it all.
-              const printable = data.replace(/\x1b(?:\[[0-9;]*[a-zA-Z]|\[[\?]?[0-9;]*[a-zA-Z]|[78])/g, "");
-              if (!printable.trim()) return;
-              bannerCooldownEnd = 0;
-            } else {
-              bannerCooldownEnd = 0;
-            }
           }
           // Hide cursor during ALL output, not just cursor-repositioning
           // sequences. Rapid writes cause the cursor to flash at intermediate
@@ -578,7 +579,6 @@ export default memo(function Terminal({
         },
         (code: number) => {
           exitedRef.current = true;
-          bannerCooldownEnd = 0;
           xtermRef.current?.write(
             `\r\n\x1b[90m[Process exited with code ${code}. Press any key to close tab]\x1b[0m`,
           );
@@ -606,7 +606,7 @@ export default memo(function Terminal({
         .catch((err) => {
           if (cancelled) return;
           onErrorRef.current(tabIdRef.current, String(err));
-          xtermRef.current?.write(`\r\n\x1b[91mError: ${err}\x1b[0m`);
+          xtermRef.current?.write(`\r\n\x1b[91mError: ${String(err).replace(/\x1b/g, "")}\x1b[0m`);
         });
     });
 
@@ -689,6 +689,7 @@ export default memo(function Terminal({
       cancelAnimationFrame(resizeRafRef.current);
       clearTimeout(resizeTimer);
       clearTimeout(cursorShowTimer);
+      clearTimeout(logoHideTimerRef.current);
       clearInterval(heartbeatInterval);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       containerRef.current?.removeEventListener("paste", handleNativePaste, true);
@@ -757,7 +758,7 @@ export default memo(function Terminal({
   return (
     <div className="terminal-wrapper">
       {showLogo && (
-        <div className="terminal-logo-overlay">
+        <div ref={logoOverlayRef} className="terminal-logo-overlay">
           <AsciiLogo cols={25} />
         </div>
       )}

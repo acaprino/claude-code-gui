@@ -93,6 +93,7 @@ pub fn claude_env() -> Vec<(String, String)> {
         ("CLAUDE_CODE_MAX_OUTPUT_TOKENS".to_string(), "64000".to_string()),
         ("TERM".to_string(), "xterm-256color".to_string()),
         ("COLORTERM".to_string(), "truecolor".to_string()),
+        ("ANVIL_SESSION".to_string(), "1".to_string()),
     ]
 }
 
@@ -132,5 +133,6 @@ pub fn gemini_env() -> Vec<(String, String)> {
     vec![
         ("TERM".to_string(), "xterm-256color".to_string()),
         ("COLORTERM".to_string(), "truecolor".to_string()),
+        ("ANVIL_SESSION".to_string(), "1".to_string()),
     ]
 }

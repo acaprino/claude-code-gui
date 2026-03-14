@@ -6,8 +6,8 @@ echo   Anvil - Tauri App Build (MSVC link.exe)
 echo ============================================
 echo.
 
-set "RUST_BIN=C:\Users\%USERNAME%\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin"
-set "CARGO_BIN=C:\Users\%USERNAME%\.cargo\bin"
+set "RUST_BIN=%USERPROFILE%\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin"
+set "CARGO_BIN=%USERPROFILE%\.cargo\bin"
 set "PATH=%RUST_BIN%;%CARGO_BIN%;%PATH%"
 
 :: Find latest VS installation with C++ tools using vswhere

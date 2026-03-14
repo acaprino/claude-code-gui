@@ -236,6 +236,8 @@ function NewTabPage({ tabId, onLaunch, onRequestClose, onOpenSystemPrompts, isAc
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isActive, hasSettings, tabId, setFilter]);
 
+  const openSettings = useCallback(() => setActiveModal("settings"), []);
+
   if (!settings) {
     return (
       <div className="new-tab-page">
@@ -264,8 +266,6 @@ function NewTabPage({ tabId, onLaunch, onRequestClose, onOpenSystemPrompts, isAc
   }
 
   const selectedProject = projects[selectedIdx] ?? null;
-
-  const openSettings = useCallback(() => setActiveModal("settings"), []);
 
   return (
     <div className="new-tab-page">
