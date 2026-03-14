@@ -7,6 +7,7 @@ import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { spawnClaude, writePty, resizePty, sendHeartbeat, killSession, saveClipboardImage } from "../hooks/usePty";
 import { getXtermTheme } from "../themes";
 import Minimap from "./Minimap";
+import BookmarkList from "./BookmarkList";
 import "@xterm/xterm/css/xterm.css";
 import "./Terminal.css";
 
@@ -108,7 +109,7 @@ export default memo(function Terminal({
   const containerRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
   const [xtermReady, setXtermReady] = useState<XTerm | null>(null);
-  const bookmarksRef = useRef(new Set<number>());
+  const bookmarksRef = useRef(new Map<number, string>());
   const lastBookmarkLineRef = useRef(-1);
   const prevBufferLenRef = useRef(0);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -341,17 +342,18 @@ export default memo(function Terminal({
         const line = xterm.buffer.active.baseY + xterm.buffer.active.cursorY;
         if (line !== lastBookmarkLineRef.current) {
           const lineContent = xterm.buffer.active.getLine(xterm.buffer.active.cursorY);
-          if (lineContent && lineContent.translateToString(true).trim().length > 0) {
+          const text = lineContent?.translateToString(true).trim() ?? "";
+          if (text.length > 0) {
             lastBookmarkLineRef.current = line;
             const bm = bookmarksRef.current;
             // Prune bookmarks outside current buffer range
             const minLine = xterm.buffer.active.baseY;
             if (bm.size > 1500) {
-              const stale = [...bm].filter(b => b < minLine);
+              const stale = [...bm.keys()].filter(b => b < minLine);
               stale.forEach(b => bm.delete(b));
             }
-            // Cap at 2000
-            if (bm.size < 2000) bm.add(line);
+            // Cap at 2000 — strip leading prompt chars (›, ❯, >)
+            if (bm.size < 2000) bm.set(line, text.replace(/^[›❯>\s]+/, ""));
           }
         }
       }
@@ -366,7 +368,7 @@ export default memo(function Terminal({
       if (prevLen > 0 && bufLen < prevLen - xterm.rows) {
         const bm = bookmarksRef.current;
         if (bm.size === 0) return;
-        const stale = [...bm].filter(b => b >= bufLen);
+        const stale = [...bm.keys()].filter(b => b >= bufLen);
         stale.forEach(b => bm.delete(b));
         if (bufLen < xterm.rows * 2) bm.clear();
         lastBookmarkLineRef.current = -1;
@@ -492,13 +494,20 @@ export default memo(function Terminal({
             }
             return;
           }
-          // Claude Code's spinner/status updates use cursor save/restore
-          // (ESC 7 / ESC 8) to reposition the cursor. Without hiding, the
-          // cursor visibly jumps to every spinner location ("double cursor"
-          // ghost). Wrapping with DECTCEM hide/show ensures the cursor is
-          // only visible at its final (real) position.
-          if (data.includes("\x1b7") || data.includes("\x1b8") || data.includes("\x1b[s") || data.includes("\x1b[u")) {
-            xtermRef.current?.write("\x1b[?25l" + data + "\x1b[?25h");
+          // Claude Code's spinner/status updates reposition the cursor via
+          // save/restore (ESC 7/8), ANSI save/restore (CSI s/u), or direct
+          // CUP sequences (CSI <row>;<col>H). Without hiding, the cursor
+          // visibly jumps to every spinner location ("double cursor" ghost).
+          // Wrapping with DECTCEM hide/show ensures the cursor is only
+          // visible at its final (real) position.
+          // Don't add trailing show if data itself hides the cursor (Claude
+          // hides cursor during thinking).
+          const hasCursorMove = data.includes("\x1b7") || data.includes("\x1b8")
+            || data.includes("\x1b[s") || data.includes("\x1b[u")
+            || /\x1b\[\d+;\d*H/.test(data);
+          if (hasCursorMove) {
+            const endsWithHide = data.includes("\x1b[?25l") && !data.includes("\x1b[?25h");
+            xtermRef.current?.write("\x1b[?25l" + data + (endsWithHide ? "" : "\x1b[?25h"));
           } else {
             xtermRef.current?.write(data);
           }
@@ -685,6 +694,7 @@ export default memo(function Terminal({
   return (
     <div className="terminal-wrapper">
       <div ref={containerRef} className="terminal-container" />
+      <BookmarkList xterm={xtermReady} isActive={isActive} bookmarksRef={bookmarksRef} />
       <Minimap xterm={xtermReady} isActive={isActive} bookmarksRef={bookmarksRef} />
     </div>
   );

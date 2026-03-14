@@ -21,7 +21,7 @@ interface ThemeColors {
 interface MinimapProps {
   xterm: XTerm | null;
   isActive: boolean;
-  bookmarksRef: React.RefObject<Set<number>>;
+  bookmarksRef: React.RefObject<Map<number, string>>;
 }
 
 export default memo(function Minimap({ xterm, isActive, bookmarksRef }: MinimapProps) {
@@ -121,7 +121,7 @@ export default memo(function Minimap({ xterm, isActive, bookmarksRef }: MinimapP
     ctx.fillStyle = bgColor;
     ctx.fillRect(0, 0, MINIMAP_WIDTH, canvasH);
 
-    const bookmarkSet = bookmarksRef.current;
+    const bookmarkSet = bookmarksRef.current; // Map<number, string>
     const maxChars = Math.floor(MINIMAP_WIDTH / CHAR_W);
 
     for (let i = 0; i < totalLines; i += lineStep) {
@@ -230,7 +230,7 @@ export default memo(function Minimap({ xterm, isActive, bookmarksRef }: MinimapP
       if (snap) {
         let nearest: number | undefined;
         let nearestDist = 4;
-        for (const b of bookmarksRef.current) {
+        for (const b of bookmarksRef.current.keys()) {
           const d = Math.abs(b - line);
           if (d < nearestDist) { nearest = b; nearestDist = d; }
         }
