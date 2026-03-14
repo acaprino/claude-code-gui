@@ -2,59 +2,110 @@
   <img src="app/public/icon.png" width="120" alt="Anvil">
 </p>
 
-<h1 align="center"><a href="https://github.com/acaprino/anvil-toolset">Anvil</a></h1>
+<h1 align="center">Anvil</h1>
 
 <p align="center">
-  <strong>A blazing-fast terminal launcher for Claude Code & Gemini CLI</strong><br>
-  <sub>Built with Tauri 2 + React 19 + xterm.js &mdash; Windows native, keyboard-first</sub>
+  <strong>Manage Claude Code &amp; Gemini CLI sessions in tabbed terminals</strong><br>
+  <sub>Pick a project. Pick a model. Hit Enter. Code.</sub>
 </p>
 
 <p align="center">
+  <a href="https://github.com/acaprino/anvil/stargazers"><img src="https://img.shields.io/github/stars/acaprino/anvil?style=flat-square" alt="Stars"></a>
   <img src="https://img.shields.io/badge/version-1.0.0-blue?style=flat-square" alt="Version">
   <img src="https://img.shields.io/badge/platform-Windows-0078D6?style=flat-square&logo=windows" alt="Platform">
   <img src="https://img.shields.io/badge/tauri-v2-24C8D8?style=flat-square&logo=tauri" alt="Tauri 2">
-  <img src="https://img.shields.io/badge/react-19-61DAFB?style=flat-square&logo=react" alt="React 19">
-  <img src="https://img.shields.io/badge/rust-2021-000000?style=flat-square&logo=rust" alt="Rust">
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License">
 </p>
+
+<!-- TODO: Add hero screenshot here once captured
+<p align="center">
+  <img src="docs/screenshots/hero.png" width="800" alt="Anvil - tabbed terminal interface with project picker">
+</p>
+-->
+
+---
+
+## Table of Contents
+
+- [What is Anvil?](#what-is-anvil)
+- [Getting Started](#getting-started)
+- [Features](#features)
+- [Keyboard Shortcuts](#keyboard-shortcuts)
+- [Configuration](#configuration)
+- [Tech Stack](#tech-stack)
+- [Contributing](#contributing)
+- [License](#license)
 
 ---
 
 ## What is Anvil?
 
-Anvil is a native Windows desktop app that gives you a **tabbed terminal interface** for launching and managing [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and [Gemini CLI](https://github.com/google-gemini/gemini-cli) sessions against your projects. Think of it as a project-aware terminal multiplexer designed specifically for AI coding tools.
-
 **Pick a project. Pick a model. Hit Enter. Code.**
 
-### Why Anvil?
+Anvil is a native Windows desktop app for launching and managing [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and [Gemini CLI](https://github.com/google-gemini/gemini-cli) sessions in tabbed terminals. It scans your project directories, lets you configure model and effort settings per session, and keeps your tabs alive across restarts.
 
-- **Zero friction** &mdash; Scan project directories automatically, filter by typing, launch with Enter
-- **Session persistence** &mdash; Close the app, reopen it, your tabs are still there
-- **Full keyboard control** &mdash; Every action has a shortcut, mouse optional
-- **Native performance** &mdash; Rust backend with WebGL-accelerated terminal rendering
-- **10 curated themes** &mdash; From Catppuccin Mocha to retro-styled Anvil Forge
+### Why not just run `claude` in a terminal?
+
+You can. But if you work across multiple projects, you end up juggling terminal windows, retyping paths, and losing context when you close them.
+
+Anvil fixes that:
+
+- **Instant project switching** &mdash; All your project directories are scanned and listed. Type to filter, press Enter to launch. No `cd`, no path typing.
+- **Persistent tabs** &mdash; Close Anvil, reopen it tomorrow. Your sessions and tabs are exactly where you left them.
+- **Keyboard-first** &mdash; Every action has a shortcut. Model selection, effort levels, permissions &mdash; all without touching the mouse.
+- **Native speed** &mdash; Rust backend with GPU-accelerated terminal rendering via xterm.js WebGL. No Electron, no web wrapper overhead.
+
+---
+
+## Getting Started
+
+### Prerequisites
+
+- **Windows 11** (or Windows 10 with WebView2)
+- **Rust** toolchain (via [rustup](https://rustup.rs/))
+- **Node.js** 18+ and npm
+- **Claude Code** (`npm i -g @anthropic-ai/claude-code`) and/or **Gemini CLI** (`npm i -g @google/gemini-cli`)
+
+### Build &amp; Run
+
+```bash
+# Clone the repository
+git clone https://github.com/acaprino/anvil.git
+cd anvil/app
+
+# Install frontend dependencies
+npm install
+
+# Run in development mode (hot-reload)
+cargo tauri dev
+
+# Production build (with LTO + strip)
+cargo tauri build
+```
+
+The release binary is optimized with LTO, single codegen unit, `opt-level = 3`, and symbol stripping for minimal binary size.
 
 ---
 
 ## Features
 
 ### Multi-Tab Terminal Interface
-- Spawn multiple concurrent AI coding sessions
-- Tab output indicators show activity at a glance
-- Exit code display on session completion
-- Custom window chrome with drag region
+- Run multiple concurrent AI coding sessions side by side
+- See which tabs have new output without switching to them
+- Exit codes display when sessions complete
+- Custom window chrome &mdash; no standard title bar
 
-### Project Discovery & Management
-- Auto-scan configured directories for projects
-- Git branch and dirty state indicators
-- CLAUDE.md presence badges
-- Custom project labels
-- Sort by: alphabetical, last used, most used
-- Real-time type-to-filter search
-- Create new projects from the UI
-- Quick launch any arbitrary directory (F10)
+### Project Discovery &amp; Management
+- Directories are scanned automatically &mdash; your projects appear instantly
+- See which branch each project is on and whether it has uncommitted changes
+- Spot which projects have a CLAUDE.md at a glance
+- Add custom labels to organize projects your way
+- Sort by name, last used, or most used
+- Type to filter &mdash; real-time search across all projects
+- Create new projects or quick-launch any directory (F10)
 
 ### AI Tool Integration
+
 | Feature | Claude Code | Gemini CLI |
 |---------|:-----------:|:----------:|
 | Model selection | sonnet / opus / haiku / 1M variants | &mdash; |
@@ -62,17 +113,29 @@ Anvil is a native Windows desktop app that gives you a **tabbed terminal interfa
 | Skip permissions | toggle | &mdash; |
 | Session launch | Enter | Enter |
 
+**Supported Claude models:**
+
+| Model | ID | Context |
+|-------|-----|---------|
+| Sonnet | `claude-sonnet-4-6` | Standard |
+| Opus | `claude-opus-4-6` | Standard |
+| Haiku | `claude-haiku-4-5` | Standard |
+| Sonnet 1M | `claude-sonnet-4-6[1m]` | Extended |
+| Opus 1M | `claude-opus-4-6[1m]` | Extended |
+
 ### Terminal Emulation
-- **xterm.js v5.5** with WebGL renderer for GPU-accelerated rendering
-- Real-time PTY communication via Tauri Channels
-- File drag-and-drop into terminal
-- Smart clipboard paste (sanitizes smart quotes, dashes, ellipsis)
-- Image paste from clipboard (Ctrl+V &rarr; temp PNG)
-- Dynamic font family & size configuration
+- **xterm.js v5.5** with WebGL renderer for GPU-accelerated text drawing
+- Drag and drop files directly into the terminal
+- Paste from Slack, Notion, or Docs without broken smart quotes and dashes
+- Paste images from clipboard (Ctrl+V creates a temp PNG)
+- Customize font family and size to your preference
 
-### Theme Engine
+### Themes
 
-10 built-in dark themes, switchable with F9:
+10 built-in dark themes, switchable with F9. Default: **Catppuccin Mocha**. Includes Dracula, Nord, Tokyo Night, Gruvbox Dark, One Dark, Solarized Dark, Monokai, Anvil Forge, and Guybrush. Themes apply to the entire UI &mdash; window chrome, tabs, project list, status bar, and terminal.
+
+<details>
+<summary>View all themes</summary>
 
 | Theme | Accent | Style |
 |-------|--------|-------|
@@ -87,19 +150,30 @@ Anvil is a native Windows desktop app that gives you a **tabbed terminal interfa
 | **Anvil Forge** | `#e8943a` orange | Retro forge |
 | **Guybrush** | `#4ac8b0` cyan | Retro adventure |
 
-Themes apply to the entire UI: window chrome, tab bar, project list, status bar, and terminal.
+</details>
 
 ### Session Management
-- Sessions persist across app restarts
-- Background session reaper cleans up dead processes
-- Win32 Job Objects for guaranteed clean termination
-- Heartbeat system for session liveness detection
+- Sessions persist across app restarts &mdash; pick up where you left off
+- Dead sessions are cleaned up automatically, no orphaned processes eating memory
+- Win32 Job Objects guarantee clean process termination, even on crashes
 
 ---
 
 ## Keyboard Shortcuts
 
-Anvil is designed for keyboard-first workflows. Every feature is reachable without a mouse.
+Anvil is keyboard-first. Every feature is reachable without a mouse.
+
+| Action | Key |
+|--------|-----|
+| New tab | `Ctrl+T` |
+| Close tab | `Ctrl+F4` |
+| Launch project | `Enter` |
+| Filter projects | Just type |
+| Cycle model | `Tab` |
+| Cycle theme | `F9` |
+
+<details>
+<summary>View all shortcuts</summary>
 
 ### Navigation
 | Key | Action |
@@ -129,6 +203,7 @@ Anvil is designed for keyboard-first workflows. Every feature is reachable witho
 | `F9` | Theme picker |
 | `F10` | Quick launch (any directory) |
 | `F11` | Font settings |
+| `Ctrl+U` | Token usage |
 | `Enter` | Launch selected project |
 
 ### Project List Navigation
@@ -141,9 +216,31 @@ Anvil is designed for keyboard-first workflows. Every feature is reachable witho
 | `Backspace` | Delete filter character |
 | `Esc` | Clear filter / close tab |
 
+</details>
+
+---
+
+## Configuration
+
+Settings are persisted automatically to disk via the Rust backend.
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| Tool | Claude | Active CLI tool |
+| Model | Sonnet | Claude model variant |
+| Effort | High | Reasoning effort level |
+| Sort | Alpha | Project sort order |
+| Theme | Catppuccin Mocha | UI theme |
+| Font | Cascadia Code, 14px | Terminal font |
+| Skip permissions | Off | Auto-accept tool use |
+| Project dirs | `D:\Projects` | Directories to scan |
+
 ---
 
 ## Tech Stack
+
+<details>
+<summary>Architecture overview</summary>
 
 ```
 ┌─────────────────────────────────────────────┐
@@ -185,74 +282,26 @@ Anvil is designed for keyboard-first workflows. Every feature is reachable witho
 | `tools.rs` | Tool resolution and CLI argument building |
 | `logging.rs` | File-based logging |
 
----
+### Architecture Highlights
 
-## Getting Started
+**Performance**
+- WebGL terminal rendering &mdash; GPU-accelerated text drawing
+- Ref-based callbacks &mdash; PTY handlers use refs to avoid stale closures and re-renders
+- React.memo on all components &mdash; surgical re-renders only
+- Tauri Channels for PTY data &mdash; zero-copy streaming, no serialization overhead
 
-### Prerequisites
+**Reliability**
+- Win32 Job Objects &mdash; child processes always cleaned up, even on crashes
+- Session Reaper &mdash; background thread monitors and cleans dead sessions
+- Panic logging &mdash; Rust panics caught and logged to file
+- Error boundaries &mdash; terminal crashes don't take down the app
 
-- **Windows 11** (or Windows 10 with WebView2)
-- **Rust** toolchain (via [rustup](https://rustup.rs/))
-- **Node.js** 18+ and npm
-- **Claude Code** (`npm i -g @anthropic-ai/claude-code`) and/or **Gemini CLI** (`npm i -g @google/gemini-cli`)
+**Security**
+- CSP enforced &mdash; `default-src 'self'; style-src 'self' 'unsafe-inline'`
+- Path validation &mdash; dropped file paths checked for safe Windows characters
+- No remote content &mdash; fully local application, no external network calls
 
-### Development
-
-```bash
-# Clone the repository
-git clone https://github.com/user/anvil.git
-cd anvil/app
-
-# Install frontend dependencies
-npm install
-
-# Run in development mode (hot-reload)
-cargo tauri dev
-```
-
-### Build
-
-```bash
-# Production build (with LTO + strip)
-cargo tauri build
-
-# Or use the build scripts
-./build_tauri.bat       # with rust-lld linker
-./build_msvc.bat        # MSVC fallback
-```
-
-The release binary is optimized with:
-- `lto = true` &mdash; Link-Time Optimization
-- `codegen-units = 1` &mdash; Maximum optimization
-- `opt-level = 3` &mdash; Aggressive optimization
-- `strip = true` &mdash; Minimal binary size
-
----
-
-## Architecture Highlights
-
-### Performance
-- **WebGL terminal rendering** &mdash; GPU-accelerated text drawing
-- **Ref-based callbacks** &mdash; Terminal PTY handlers use refs to avoid stale closures and re-renders
-- **React.memo on all components** &mdash; Surgical re-renders only
-- **Vendor chunk splitting** &mdash; React and xterm.js in separate bundles
-- **Tauri Channels for PTY data** &mdash; Zero-copy streaming, no serialization overhead
-
-### Reliability
-- **Win32 Job Objects** &mdash; Child processes are always cleaned up, even on crashes
-- **Session Reaper** &mdash; Background thread monitors and cleans dead sessions
-- **Panic logging** &mdash; Rust panics are caught and logged to file
-- **Error boundaries** &mdash; Terminal crashes don't take down the app
-- **Session persistence** &mdash; Tab state survives app restarts
-
-### Security
-- **CSP enforced** &mdash; `default-src 'self'; style-src 'self' 'unsafe-inline'`
-- **Path validation** &mdash; Dropped file paths checked for safe Windows characters
-- **No remote content** &mdash; Fully local application, no external network calls
-
----
-
-## Project Structure
+### Project Structure
 
 ```
 anvil/
@@ -278,44 +327,32 @@ anvil/
 │   │   └── tauri.conf.json
 │   ├── package.json
 │   └── vite.config.ts
-├── CLAUDE.md                 # Project instructions
-├── build_tauri.bat           # Build script (rust-lld)
-├── build_msvc.bat            # Build script (MSVC)
+├── docs/TECHNICAL.md          # Detailed technical docs
+├── CLAUDE.md                  # Project instructions
+├── build_tauri.bat            # Build script (rust-lld)
+├── build_msvc.bat             # Build script (MSVC)
 └── README.md
 ```
 
----
-
-## Configuration
-
-Settings are persisted automatically to disk via the Rust backend.
-
-| Setting | Default | Description |
-|---------|---------|-------------|
-| Tool | Claude | Active CLI tool |
-| Model | Sonnet | Claude model variant |
-| Effort | High | Reasoning effort level |
-| Sort | Alpha | Project sort order |
-| Theme | Catppuccin Mocha | UI theme |
-| Font | Cascadia Code, 14px | Terminal font |
-| Skip permissions | Off | Auto-accept tool use |
-| Project dirs | `D:\Projects` | Directories to scan |
+</details>
 
 ---
 
-## Models
+## Contributing
 
-| Model | ID | Context |
-|-------|-----|---------|
-| Sonnet | `claude-sonnet-4-6` | Standard |
-| Opus | `claude-opus-4-6` | Standard |
-| Haiku | `claude-haiku-4-5` | Standard |
-| Sonnet 1M | `claude-sonnet-4-6[1m]` | Extended |
-| Opus 1M | `claude-opus-4-6[1m]` | Extended |
+Contributions are welcome. Please [open an issue](https://github.com/acaprino/anvil/issues) first to discuss what you'd like to change.
+
+For detailed architecture and development guide, see [`docs/TECHNICAL.md`](docs/TECHNICAL.md).
+
+---
+
+## License
+
+[MIT](LICENSE)
 
 ---
 
 <p align="center">
-  <sub>Built with Rust and TypeScript. Forged on Windows.</sub><br>
+  <sub>Windows native, keyboard-first. Built with Tauri 2, React 19, and Rust.</sub><br>
   <sub>Anvil &mdash; where code meets the hammer.</sub>
 </p>
