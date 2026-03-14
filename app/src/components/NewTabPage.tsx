@@ -22,6 +22,7 @@ interface NewTabPageProps {
     effortIdx: number,
     skipPerms: boolean,
     autocompact: boolean,
+    temporary?: boolean,
   ) => void;
   onRequestClose: (tabId: string) => void;
   onOpenSystemPrompts: () => void;
@@ -282,6 +283,7 @@ function NewTabPage({ tabId, onLaunch, onRequestClose, onOpenSystemPrompts, isAc
         projectCount={projects.length}
         onOpenSettings={openSettings}
         onOpenSystemPrompts={onOpenSystemPrompts}
+        onQuickLaunch={() => setActiveModal("quick-launch")}
       />
 
       {activeModal === "create-project" && (
@@ -324,7 +326,7 @@ function NewTabPage({ tabId, onLaunch, onRequestClose, onOpenSystemPrompts, isAc
             }
             const name = dirPath.split(/[\\/]/).pop() ?? "Terminal";
             setActiveModal(null);
-            onLaunch(tabId, dirPath, name, settings.tool_idx, settings.model_idx, settings.effort_idx, settings.skip_perms, settings.autocompact);
+            onLaunch(tabId, dirPath, name, settings.tool_idx, settings.model_idx, settings.effort_idx, settings.skip_perms, settings.autocompact, !addToProjects);
           }}
         />
       )}

@@ -15,6 +15,7 @@ export interface Tab {
   effortIdx?: number;
   skipPerms?: boolean;
   autocompact?: boolean;
+  temporary?: boolean;
   sessionId?: string;
   hasNewOutput?: boolean;
   exitCode?: number | null;

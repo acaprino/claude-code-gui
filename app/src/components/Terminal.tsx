@@ -27,8 +27,6 @@ const BANNER_BUF_MAX = 8192;
 /** How long (ms) to strip cursor-repositioned status bar output after the
  *  banner is consumed. Prevents Claude's status from overwriting the Anvil logo. */
 const BANNER_COOLDOWN_MS = 2000;
-/** Matches CSI row;col H (CUP) sequences used by Claude's status bar positioning. */
-const CUP_RE = /\x1b\[\d+;\d*H/g;
 
 /** Replace common non-ASCII characters with ASCII equivalents and strip control chars.
  *  This prevents encoding issues when pasting text from editors, web pages, or Word docs. */
@@ -520,7 +518,11 @@ export default memo(function Terminal({
                 const rest = nlAfter !== -1 ? bannerBuf.slice(nlAfter + 1) : "";
                 bannerBuf = null;
                 bannerCooldownEnd = Date.now() + BANNER_COOLDOWN_MS;
-                if (rest) xtermRef.current?.write(rest);
+                // Filter rest through same cooldown logic — it may contain
+                // CUP-positioned status bar output that would overwrite the logo.
+                if (rest && !CURSOR_MOVE_RE.test(rest)) {
+                  xtermRef.current?.write(rest);
+                }
               } else {
                 // Bail — write everything as-is
                 const buf = bannerBuf;
@@ -537,14 +539,9 @@ export default memo(function Terminal({
             if (Date.now() >= bannerCooldownEnd) {
               bannerCooldownEnd = 0;
             } else if (CURSOR_MOVE_RE.test(data)) {
-              // Strip only CUP sequences (absolute positioning used by Claude's
-              // status bar) and their trailing text up to the next ESC or newline.
-              // This preserves non-cursor content in mixed chunks.
-              const stripped = data.replace(CUP_RE, "");
-              if (stripped && !/^\s*$/.test(stripped)) {
-                bannerCooldownEnd = 0;
-                xtermRef.current?.write(stripped);
-              }
+              // Drop entire chunk — the text is position-dependent (status bar
+              // content placed by CUP sequences) and writing it without its
+              // cursor positioning causes garbled overlap with the Anvil logo.
               return;
             } else {
               bannerCooldownEnd = 0;

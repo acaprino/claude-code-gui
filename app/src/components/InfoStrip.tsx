@@ -6,9 +6,10 @@ interface InfoStripProps {
   projectCount: number;
   onOpenSettings: () => void;
   onOpenSystemPrompts: () => void;
+  onQuickLaunch: () => void;
 }
 
-export default memo(function InfoStrip({ filter, projectCount, onOpenSettings, onOpenSystemPrompts }: InfoStripProps) {
+export default memo(function InfoStrip({ filter, projectCount, onOpenSettings, onOpenSystemPrompts, onQuickLaunch }: InfoStripProps) {
   return (
     <div className="info-strip">
       <div className="info-strip__left">
@@ -19,6 +20,14 @@ export default memo(function InfoStrip({ filter, projectCount, onOpenSettings, o
         )}
       </div>
       <div className="info-strip__right">
+        <button
+          className="info-strip__btn"
+          onClick={onQuickLaunch}
+          title="Temp Session (F10)"
+          aria-label="Open temporary session"
+        >
+          &#8811;
+        </button>
         <button
           className="info-strip__btn"
           onClick={onOpenSystemPrompts}

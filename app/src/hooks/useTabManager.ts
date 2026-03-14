@@ -11,6 +11,7 @@ interface SavedTab {
   modelIdx: number;
   effortIdx: number;
   skipPerms: boolean;
+  temporary: boolean;
 }
 
 function createNewTab(): Tab {
@@ -32,6 +33,7 @@ function createRestoredTab(saved: SavedTab): Tab {
     modelIdx: saved.modelIdx,
     effortIdx: saved.effortIdx,
     skipPerms: saved.skipPerms,
+    temporary: saved.temporary || false,
     hasNewOutput: false,
     exitCode: null,
   };
@@ -58,6 +60,7 @@ export function useTabManager() {
             modelIdx: typeof s.modelIdx === "number" ? s.modelIdx : 0,
             effortIdx: typeof s.effortIdx === "number" ? s.effortIdx : 0,
             skipPerms: s.skipPerms === true,
+            temporary: s.temporary === true,
           }));
         if (restoredTabs.length > 0) {
           const newTab = createNewTab();
@@ -76,7 +79,7 @@ export function useTabManager() {
   // recalculating on volatile changes like hasNewOutput or exitCode.
   const saveableKey = tabs
     .filter((t) => t.type === "terminal" && t.projectPath)
-    .map((t) => `${t.projectPath}|${t.projectName ?? "Terminal"}|${t.toolIdx ?? 0}|${t.modelIdx ?? 0}|${t.effortIdx ?? 0}|${t.skipPerms ?? false}`)
+    .map((t) => `${t.projectPath}|${t.projectName ?? "Terminal"}|${t.toolIdx ?? 0}|${t.modelIdx ?? 0}|${t.effortIdx ?? 0}|${t.skipPerms ?? false}|${t.temporary ?? false}`)
     .join("\n");
 
   const saveableState = useMemo(() =>
@@ -90,6 +93,7 @@ export function useTabManager() {
           modelIdx: t.modelIdx ?? 0,
           effortIdx: t.effortIdx ?? 0,
           skipPerms: t.skipPerms ?? false,
+          temporary: t.temporary ?? false,
         })),
     ),
     // eslint-disable-next-line react-hooks/exhaustive-deps

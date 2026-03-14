@@ -32,7 +32,7 @@ function AppContent() {
     prevTab,
   } = useTabManager();
 
-  const { settings, setFilter } = useProjectsContext();
+  const { settings, setFilter, updateSettings } = useProjectsContext();
   const themeIdx = settings?.theme_idx ?? 0;
   const fontFamily = settings?.font_family ?? "Cascadia Code";
   const fontSize = settings?.font_size ?? 14;
@@ -93,7 +93,7 @@ function AppContent() {
   }, [addTabAndResetFilter, toggleAboutTab, toggleUsageTab, toggleSystemPromptTab, closeTab, activeTabId, nextTab, prevTab]);
 
   const handleLaunch = useCallback(
-    (tabId: string, projectPath: string, projectName: string, toolIdx: number, modelIdx: number, effortIdx: number, skipPerms: boolean, autocompact: boolean) => {
+    (tabId: string, projectPath: string, projectName: string, toolIdx: number, modelIdx: number, effortIdx: number, skipPerms: boolean, autocompact: boolean, temporary?: boolean) => {
       updateTab(tabId, {
         type: "terminal",
         projectPath,
@@ -103,6 +103,7 @@ function AppContent() {
         effortIdx,
         skipPerms,
         autocompact,
+        temporary: temporary || false,
       });
     },
     [updateTab],
@@ -124,6 +125,24 @@ function AppContent() {
   const handleError = useCallback((tabId: string, msg: string) => {
     console.error(`Tab ${tabId} error:`, msg);
   }, []);
+
+  const handleSaveToProjects = useCallback((tabId: string) => {
+    const tab = tabs.find((t) => t.id === tabId);
+    if (!tab?.projectPath || !tab.temporary) return;
+    // Add to single_project_dirs if not already tracked
+    const dl = tab.projectPath.toLowerCase();
+    const currentSettings = settings;
+    if (!currentSettings) return;
+    const inContainer = currentSettings.project_dirs.some(
+      (d) => dl.startsWith(d.toLowerCase() + "\\") || dl.startsWith(d.toLowerCase() + "/"),
+    );
+    const isSingle = currentSettings.single_project_dirs.some((d) => d.toLowerCase() === dl);
+    if (!inContainer && !isSingle) {
+      updateSettings({ single_project_dirs: [...currentSettings.single_project_dirs, tab.projectPath] });
+    }
+    // Remove temp flag
+    updateTab(tabId, { temporary: false });
+  }, [tabs, settings, updateSettings, updateTab]);
 
   // H4: Memoize resize handlers to avoid creating new arrow functions every render
   const resizeHandlers = useMemo(() => ({
@@ -153,6 +172,7 @@ function AppContent() {
         onActivate={activateTab}
         onClose={closeTab}
         onAdd={addTabAndResetFilter}
+        onSaveToProjects={handleSaveToProjects}
       />
       <div className="tab-content">
         {tabs.map((tab) => {
