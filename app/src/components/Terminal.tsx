@@ -155,6 +155,7 @@ export default memo(function Terminal({
 
     const xterm = new XTerm({
       cursorBlink: true,
+      cursorStyle: "bar",
       fontSize: fontSize || 14,
       fontFamily: fontFamily ? `'${fontFamily}', 'Consolas', monospace` : "'Cascadia Code', 'Consolas', monospace",
       theme: getXtermTheme(themeIdx),
@@ -473,7 +474,10 @@ export default memo(function Terminal({
             // Wait until we see the first horizontal rule (─────) which marks
             // the end of Claude's banner, or bail after 8KB to avoid stalling.
             if (bannerBuf.includes("\u2500\u2500\u2500\u2500\u2500") || bannerBuf.length > 8192) {
-              const idx = bannerBuf.indexOf("\u2500\u2500\u2500\u2500\u2500");
+              // Use lastIndexOf: Claude's status box borders also contain ─────,
+              // so indexOf matches the box border and keeps most of the banner.
+              // The actual separator is the LAST horizontal rule in the banner.
+              const idx = bannerBuf.lastIndexOf("\u2500\u2500\u2500\u2500\u2500");
               if (idx !== -1) {
                 // Keep everything from the separator onward
                 const rest = bannerBuf.slice(idx);
@@ -488,7 +492,16 @@ export default memo(function Terminal({
             }
             return;
           }
-          xtermRef.current?.write(data);
+          // Claude Code's spinner/status updates use cursor save/restore
+          // (ESC 7 / ESC 8) to reposition the cursor. Without hiding, the
+          // cursor visibly jumps to every spinner location ("double cursor"
+          // ghost). Wrapping with DECTCEM hide/show ensures the cursor is
+          // only visible at its final (real) position.
+          if (data.includes("\x1b7") || data.includes("\x1b8") || data.includes("\x1b[s") || data.includes("\x1b[u")) {
+            xtermRef.current?.write("\x1b[?25l" + data + "\x1b[?25h");
+          } else {
+            xtermRef.current?.write(data);
+          }
           if (!isActiveRef.current) {
             onNewOutputRef.current(tabIdRef.current);
           }
