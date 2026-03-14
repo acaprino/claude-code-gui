@@ -8,6 +8,7 @@ const MINIMAP_WIDTH = 90;
 const BOOKMARK_W = 6;
 const MAX_CANVAS_H = 16384;
 const SPECIAL_CHARS = new Set("{}[]()=><|&;:");
+const WHEEL_LINE_PX = 25;
 
 interface ThemeColors {
   bg: string;
@@ -92,17 +93,8 @@ export default memo(function Minimap({ xterm, isActive, bookmarksRef }: MinimapP
     const ctx = canvas.getContext("2d", { alpha: false });
     if (!ctx) return;
 
-    if (!colorsRef.current) {
-      const style = getComputedStyle(document.documentElement);
-      colorsRef.current = {
-        bg: style.getPropertyValue("--bg").trim(),
-        text: style.getPropertyValue("--text").trim(),
-        dim: style.getPropertyValue("--text-dim").trim(),
-        accent: style.getPropertyValue("--accent").trim(),
-        yellow: style.getPropertyValue("--yellow").trim(),
-      };
-    }
-    const { bg: bgColor, text: textColor, dim: dimColor, accent: accentColor, yellow: yellowColor } = colorsRef.current;
+    if (!colorsRef.current) readColors();
+    const { bg: bgColor, text: textColor, dim: dimColor, accent: accentColor, yellow: yellowColor } = colorsRef.current!;
 
     const buf = xterm.buffer.active;
     const totalLines = buf.length;
@@ -130,16 +122,6 @@ export default memo(function Minimap({ xterm, isActive, bookmarksRef }: MinimapP
     ctx.fillRect(0, 0, MINIMAP_WIDTH, canvasH);
 
     const bookmarkSet = bookmarksRef.current;
-
-    // Prune stale bookmarks after buffer clear (e.g. /clear in Claude Code)
-    if (bookmarkSet.size > 0) {
-      for (const b of bookmarkSet) {
-        if (b >= totalLines) bookmarkSet.delete(b);
-      }
-      // Buffer shorter than 2 visible pages = likely a clear — drop all bookmarks
-      if (totalLines < xterm.rows * 2) bookmarkSet.clear();
-    }
-
     const maxChars = Math.floor(MINIMAP_WIDTH / CHAR_W);
 
     for (let i = 0; i < totalLines; i += lineStep) {
@@ -170,7 +152,7 @@ export default memo(function Minimap({ xterm, isActive, bookmarksRef }: MinimapP
 
     // Also update viewport position after content render
     updateViewport();
-  }, [xterm, updateViewport, bookmarksRef]);
+  }, [xterm, readColors, updateViewport, bookmarksRef]);
 
   const scheduleRender = useCallback(() => {
     if (contentRafRef.current) return;
@@ -218,7 +200,10 @@ export default memo(function Minimap({ xterm, isActive, bookmarksRef }: MinimapP
     if (!container || !xterm) return;
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault();
-      const lines = Math.round(e.deltaY / 25) || (e.deltaY > 0 ? 1 : -1);
+      let lines: number;
+      if (e.deltaMode === 1) lines = Math.round(e.deltaY);
+      else if (e.deltaMode === 2) lines = Math.round(e.deltaY * xterm.rows);
+      else lines = Math.round(e.deltaY / WHEEL_LINE_PX) || (e.deltaY > 0 ? 1 : -1);
       xterm.scrollLines(lines);
     };
     container.addEventListener("wheel", handleWheel, { passive: false });
@@ -232,9 +217,10 @@ export default memo(function Minimap({ xterm, isActive, bookmarksRef }: MinimapP
   const scrollToY = useCallback(
     (clientY: number, snap: boolean) => {
       if (!xterm || !containerRef.current || !canvasRef.current) return;
+      const totalLines = xterm.buffer.active.length;
+      if (totalLines === 0) return;
       const rect = canvasRef.current.getBoundingClientRect();
       const y = clientY - rect.top + containerRef.current.scrollTop;
-      const totalLines = xterm.buffer.active.length;
       const rawH = totalLines * CHAR_H;
       const canvasH = Math.min(rawH, MAX_CANVAS_H);
       const scale = canvasH / rawH;

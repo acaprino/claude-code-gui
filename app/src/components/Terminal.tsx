@@ -106,6 +106,7 @@ export default memo(function Terminal({
   const [xtermReady, setXtermReady] = useState<XTerm | null>(null);
   const bookmarksRef = useRef(new Set<number>());
   const lastBookmarkLineRef = useRef(-1);
+  const prevBufferLenRef = useRef(0);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const fitAndResizeRef = useRef<(() => void) | null>(null);
   const exitedRef = useRef(false);
@@ -341,7 +342,8 @@ export default memo(function Terminal({
             // Prune bookmarks outside current buffer range
             const minLine = xterm.buffer.active.baseY;
             if (bm.size > 1500) {
-              for (const b of bm) { if (b < minLine) bm.delete(b); }
+              const stale = [...bm].filter(b => b < minLine);
+              stale.forEach(b => bm.delete(b));
             }
             // Cap at 2000
             if (bm.size < 2000) bm.add(line);
@@ -349,6 +351,21 @@ export default memo(function Terminal({
         }
       }
       writePty(sessionIdRef.current, data).catch(() => {});
+    });
+
+    // Prune stale bookmarks when the buffer shrinks (e.g. /clear in Claude Code)
+    xterm.onWriteParsed(() => {
+      const bufLen = xterm.buffer.active.length;
+      const prevLen = prevBufferLenRef.current;
+      prevBufferLenRef.current = bufLen;
+      if (prevLen > 0 && bufLen < prevLen - xterm.rows) {
+        const bm = bookmarksRef.current;
+        if (bm.size === 0) return;
+        const stale = [...bm].filter(b => b >= bufLen);
+        stale.forEach(b => bm.delete(b));
+        if (bufLen < xterm.rows * 2) bm.clear();
+        lastBookmarkLineRef.current = -1;
+      }
     });
 
     xtermRef.current = xterm;
