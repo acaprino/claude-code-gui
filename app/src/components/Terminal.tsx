@@ -430,6 +430,31 @@ export default memo(function Terminal({
       const cols = xterm.cols;
       const rows = xterm.rows;
 
+      // Write the Anvil ASCII logo into the terminal before spawning so it
+      // appears instantly — the hook-based approach only injects into Claude's
+      // system context and is never visible to the user.
+      xterm.write(
+        "\x1b[38;2;139;110;72m        ___\r\n" +
+        "       / _ \\\r\n" +
+        "      | |_) |\r\n" +
+        "       \\___/\x1b[0m\r\n" +
+        "\x1b[38;2;108;130;145m    \u2554\u2550\u2550\u2550\u2567\u2550\u2550\u2550\u2557\r\n" +
+        "    \u2551       \u2551\r\n" +
+        "    \u2560\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2563\r\n" +
+        "    \u2551       \u2551\r\n" +
+        "    \u255a\u2550\u2550\u2564\u2550\u2564\u2550\u2550\u255d\r\n" +
+        "   \u2550\u2550\u2550\u2550\u2567\u2550\u2567\u2550\u2550\u2550\u2550\x1b[0m\r\n" +
+        "\r\n" +
+        "\x1b[38;2;180;190;200m   \u2554\u2550\u2557 \u2566\u2557\u2566 \u2566  \u2566 \u2566 \u2566\r\n" +
+        "   \u2560\u2550\u2563 \u2551\u2551\u2551 \u255a\u2557\u2554\u255d \u2551 \u2551\r\n" +
+        "   \u2569 \u2569 \u255d\u255a\u255d  \u255a\u255d  \u2569 \u2569\u2550\u255d\x1b[0m\r\n" +
+        "\x1b[2m   AI Code Session Launcher\x1b[0m\r\n\r\n"
+      );
+
+      // For Claude (toolIdx 0), buffer initial output to strip the built-in
+      // banner (▐▛███▜▌ block chars) — Anvil shows its own logo instead.
+      let bannerBuf = toolIdx === 0 ? "" : null;
+
       spawnClaude(
         projectPath,
         toolIdx,
@@ -440,6 +465,26 @@ export default memo(function Terminal({
         cols,
         rows,
         (data: string) => {
+          if (bannerBuf !== null) {
+            bannerBuf += data;
+            // Wait until we see the first horizontal rule (─────) which marks
+            // the end of Claude's banner, or bail after 8KB to avoid stalling.
+            if (bannerBuf.includes("\u2500\u2500\u2500\u2500\u2500") || bannerBuf.length > 8192) {
+              const idx = bannerBuf.indexOf("\u2500\u2500\u2500\u2500\u2500");
+              if (idx !== -1) {
+                // Keep everything from the separator onward
+                const rest = bannerBuf.slice(idx);
+                bannerBuf = null;
+                xtermRef.current?.write(rest);
+              } else {
+                // Bail — write everything as-is
+                const buf = bannerBuf;
+                bannerBuf = null;
+                xtermRef.current?.write(buf);
+              }
+            }
+            return;
+          }
           xtermRef.current?.write(data);
           if (!isActiveRef.current) {
             onNewOutputRef.current(tabIdRef.current);
