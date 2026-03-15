@@ -655,11 +655,10 @@ export default memo(function Terminal({
       }
       if (spinnerActive) {
         spinnerActive = false;
-        // Clear spinner line and move cursor up to the prompt line.
-        // The next content (streaming text or result) typically starts with
-        // \r\n or \n, which brings the cursor back down — so the response
-        // appears immediately below the prompt with no blank gap.
-        xterm.write("\r\x1b[2K\x1b[A");
+        // Clear the spinner line — cursor stays on this line so the next
+        // content (assistant text, result, etc.) writes directly below the
+        // user's prompt with no blank gap and no overwrite.
+        xterm.write("\r\x1b[2K");
       }
     };
 
