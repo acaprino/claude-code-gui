@@ -37,6 +37,9 @@ features = [
     "Win32_Foundation",
     "Win32_Graphics_Dwm",
     "Win32_Storage_FileSystem",
+    "Win32_Security",
+    "Win32_System_JobObjects",
+    "Win32_System_Threading",
 ]
 
 [profile.release]

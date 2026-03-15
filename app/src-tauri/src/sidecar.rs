@@ -1,10 +1,14 @@
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
+use std::os::windows::io::AsRawHandle;
 use std::os::windows::process::CommandExt;
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
+
+use windows::Win32::Foundation::HANDLE;
+use windows::Win32::System::JobObjects::*;
 
 use serde::{Deserialize, Serialize};
 use tauri::ipc::Channel;
@@ -109,8 +113,20 @@ pub struct SidecarManager {
     oneshots: OneshotMap,
     available: AtomicBool,
     _process: Mutex<Option<Child>>,
+    /// Win32 Job Object — kills all child processes when closed.
+    _job: Mutex<Option<JobHandle>>,
     /// Human-readable reason if unavailable (for frontend warning)
     unavailable_reason: Mutex<Option<String>>,
+}
+
+/// RAII wrapper for a Win32 Job Object handle.
+struct JobHandle(HANDLE);
+unsafe impl Send for JobHandle {}
+unsafe impl Sync for JobHandle {}
+impl Drop for JobHandle {
+    fn drop(&mut self) {
+        unsafe { let _ = windows::Win32::Foundation::CloseHandle(self.0); }
+    }
 }
 
 impl SidecarManager {
@@ -121,6 +137,7 @@ impl SidecarManager {
             oneshots: Arc::new(Mutex::new(HashMap::new())),
             available: AtomicBool::new(false),
             _process: Mutex::new(None),
+            _job: Mutex::new(None),
             unavailable_reason: Mutex::new(None),
         };
 
@@ -239,6 +256,16 @@ impl SidecarManager {
             .creation_flags(0x08000000) // CREATE_NO_WINDOW
             .spawn()
             .map_err(|e| format!("Failed to spawn sidecar: {e}"))?;
+
+        // Create a Win32 Job Object so that all child processes (agent SDK
+        // subprocesses) are killed when the job is closed / Anvil exits.
+        match create_job_for_child(&child) {
+            Ok(job) => {
+                log_info!("sidecar: process assigned to job object");
+                *self._job.lock().unwrap() = Some(job);
+            }
+            Err(e) => log_warn!("sidecar: failed to create job object: {e}"),
+        }
 
         let stdout = child.stdout.take().ok_or("No stdout")?;
         let stderr = child.stderr.take().ok_or("No stderr")?;
@@ -405,7 +432,15 @@ impl SidecarManager {
         log_info!("sidecar: shutting down");
         // Close stdin — this triggers the sidecar's rl.on('close') handler
         *self.stdin.lock().unwrap() = None;
-        // Kill the process if still running
+        // Terminate the job object first — this kills the sidecar AND all its
+        // child processes (agent SDK subprocesses) in one shot.
+        if let Some(job) = self._job.lock().unwrap().take() {
+            log_info!("sidecar: terminating job object (kills process tree)");
+            unsafe {
+                let _ = TerminateJobObject(job.0, 1);
+            }
+        }
+        // Fallback: kill the direct child if still running
         if let Some(ref mut child) = *self._process.lock().unwrap() {
             let _ = child.kill();
         }
@@ -415,6 +450,34 @@ impl SidecarManager {
 impl Drop for SidecarManager {
     fn drop(&mut self) {
         self.shutdown();
+    }
+}
+
+/// Create a Win32 Job Object configured to kill all processes on close,
+/// and assign the given child process to it.
+fn create_job_for_child(child: &Child) -> Result<JobHandle, String> {
+    unsafe {
+        let job = CreateJobObjectW(None, windows::core::PCWSTR::null())
+            .map_err(|e| format!("CreateJobObjectW: {e}"))?;
+
+        // Configure: kill all processes when the job handle is closed
+        let mut info = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
+        info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+        SetInformationJobObject(
+            job,
+            JobObjectExtendedLimitInformation,
+            &info as *const _ as *const std::ffi::c_void,
+            std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+        )
+        .map_err(|e| format!("SetInformationJobObject: {e}"))?;
+
+        // Assign the child process to the job
+        let raw_handle = child.as_raw_handle();
+        let process_handle = HANDLE(raw_handle);
+        AssignProcessToJobObject(job, process_handle)
+            .map_err(|e| format!("AssignProcessToJobObject: {e}"))?;
+
+        Ok(JobHandle(job))
     }
 }
 
