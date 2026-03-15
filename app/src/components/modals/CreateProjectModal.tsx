@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import Modal from "../Modal";
+import FolderTree from "../FolderTree";
 
 interface CreateProjectModalProps {
   projectDirs: string[];
@@ -50,20 +51,16 @@ export default function CreateProjectModal({
           placeholder="my-project"
         />
       </div>
-      {projectDirs.length > 1 && (
-        <div className="modal-field">
-          <label>Parent directory</label>
-          <select
-            className="modal-input"
-            value={parentDir}
-            onChange={(e) => setParentDir(e.target.value)}
-          >
-            {projectDirs.map((d) => (
-              <option key={d} value={d}>{d}</option>
-            ))}
-          </select>
-        </div>
-      )}
+      <div className="modal-field">
+        <label>Parent directory</label>
+        <input
+          className="modal-input"
+          value={parentDir}
+          onChange={(e) => setParentDir(e.target.value)}
+          placeholder="D:\Projects"
+        />
+      </div>
+      <FolderTree selected={parentDir} onSelect={setParentDir} />
       <div className="modal-checkbox">
         <input
           type="checkbox"

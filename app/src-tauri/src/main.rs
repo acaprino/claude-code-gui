@@ -82,6 +82,33 @@ fn main() {
             log_info!("setup: syncing marketplace");
             marketplace::sync_marketplace();
 
+            // Auto-grant clipboard permission to suppress the WebView2 permission dialog.
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.with_webview(|webview| {
+                    use webview2_com::Microsoft::Web::WebView2::Win32::*;
+                    use webview2_com::PermissionRequestedEventHandler;
+                    let controller = webview.controller();
+                    unsafe {
+                        if let Ok(core) = controller.CoreWebView2() {
+                            let handler = PermissionRequestedEventHandler::create(
+                                Box::new(|_sender, args| {
+                                    if let Some(args) = args {
+                                        let mut kind = COREWEBVIEW2_PERMISSION_KIND(0);
+                                        args.PermissionKind(&mut kind)?;
+                                        if kind == COREWEBVIEW2_PERMISSION_KIND_CLIPBOARD_READ {
+                                            args.SetState(COREWEBVIEW2_PERMISSION_STATE_ALLOW)?;
+                                        }
+                                    }
+                                    Ok(())
+                                }),
+                            );
+                            let mut token = 0i64;
+                            let _ = core.add_PermissionRequested(&handler, &mut token);
+                        }
+                    }
+                });
+            }
+
             log_info!("setup: complete");
             Ok(())
         })
