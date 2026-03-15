@@ -111,35 +111,39 @@ pub async fn spawn_tool(
         .map(|(i, p)| if i == 0 { p.clone() } else { quote_arg(p) })
         .collect::<Vec<_>>()
         .join(" ");
-    // Log the command used to launch the session.  Redact --append-system-prompt
+    // Log the command used to launch the session.  Redact the --append-system-prompt
     // value (the next quoted argument) since it can be large and contain user content.
-    let log_cmd: std::borrow::Cow<str> = if let Some(flag_pos) = command_line.find("--append-system-prompt") {
-        let after_flag = flag_pos + "--append-system-prompt".len();
-        // Skip whitespace, then skip the quoted argument value to preserve trailing flags
-        let rest = &command_line[after_flag..];
-        let trimmed = rest.trim_start();
-        let skip_ws = rest.len() - trimmed.len();
-        let value_end = if trimmed.starts_with('"') {
-            // Find closing quote (respecting escaped quotes from quote_arg)
-            let mut i = 1;
-            let bytes = trimmed.as_bytes();
-            while i < bytes.len() {
-                if bytes[i] == b'\\' { i += 2; continue; }
-                if bytes[i] == b'"' { i += 1; break; }
-                i += 1;
-            }
-            after_flag + skip_ws + i
+    // The command line has the form: ... "--append-system-prompt" "prompt text..." ...
+    // We search for the quoted flag token to correctly locate the value argument.
+    let log_cmd: std::borrow::Cow<str> = {
+        let flag_token = "\"--append-system-prompt\"";
+        if let Some(flag_pos) = command_line.find(flag_token) {
+            let after_flag = flag_pos + flag_token.len();
+            let rest = &command_line[after_flag..];
+            let trimmed = rest.trim_start();
+            let skip_ws = rest.len() - trimmed.len();
+            let value_end = if trimmed.starts_with('"') {
+                // Find closing quote (respecting escaped quotes from quote_arg)
+                let mut i = 1;
+                let bytes = trimmed.as_bytes();
+                while i < bytes.len() {
+                    if bytes[i] == b'\\' { i += 2; continue; }
+                    if bytes[i] == b'"' { i += 1; break; }
+                    i += 1;
+                }
+                after_flag + skip_ws + i
+            } else {
+                // Unquoted: ends at next whitespace
+                after_flag + skip_ws + trimmed.find(' ').unwrap_or(trimmed.len())
+            };
+            std::borrow::Cow::Owned(format!(
+                "{}\"--append-system-prompt\" <redacted>{}",
+                &command_line[..flag_pos],
+                &command_line[value_end..],
+            ))
         } else {
-            // Unquoted: ends at next whitespace
-            after_flag + skip_ws + trimmed.find(' ').unwrap_or(trimmed.len())
-        };
-        std::borrow::Cow::Owned(format!(
-            "{}--append-system-prompt <redacted>{}",
-            &command_line[..flag_pos],
-            &command_line[value_end..],
-        ))
-    } else {
-        std::borrow::Cow::Borrowed(&command_line)
+            std::borrow::Cow::Borrowed(&command_line)
+        }
     };
     log_info!("spawn_tool: command={log_cmd}");
 
@@ -374,4 +378,77 @@ pub async fn load_session() -> Result<serde_json::Value, String> {
     tokio::task::spawn_blocking(|| Ok(projects::load_session().unwrap_or(serde_json::Value::Null)))
         .await
         .map_err(|e| format!("Task failed: {e}"))?
+}
+
+#[derive(serde::Serialize)]
+pub struct DirEntry {
+    pub name: String,
+    pub path: String,
+    pub has_children: bool,
+}
+
+const MAX_DIR_ENTRIES: usize = 500;
+
+#[tauri::command]
+pub async fn list_directory(path: Option<String>) -> Result<Vec<DirEntry>, String> {
+    log_info!("list_directory: path={path:?}");
+    tokio::task::spawn_blocking(move || {
+        // If no path, return Windows drive roots using GetLogicalDrives() WinAPI
+        // to avoid blocking on disconnected network/removable drives.
+        if path.is_none() {
+            let mask = unsafe { windows::Win32::Storage::FileSystem::GetLogicalDrives() };
+            let mut drives = Vec::new();
+            for i in 0..26u32 {
+                if mask & (1 << i) != 0 {
+                    let root = format!("{}:\\", (b'A' + i as u8) as char);
+                    drives.push(DirEntry {
+                        name: root.clone(),
+                        path: root,
+                        has_children: true,
+                    });
+                }
+            }
+            return Ok(drives);
+        }
+
+        let dir = path.unwrap();
+        if projects::is_unc(&dir) {
+            log_error!("list_directory: UNC paths not supported: {dir}");
+            return Err("UNC paths are not supported".to_string());
+        }
+        if !std::path::Path::new(&dir).is_dir() {
+            return Err("Path does not exist or is not a directory".to_string());
+        }
+
+        let mut entries = Vec::new();
+        let read = std::fs::read_dir(&dir).map_err(|e| {
+            log_error!("list_directory: cannot read {dir}: {e}");
+            "Unable to read directory".to_string()
+        })?;
+
+        for entry in read.flatten() {
+            if entries.len() >= MAX_DIR_ENTRIES {
+                break;
+            }
+            let ft = match entry.file_type() {
+                Ok(ft) => ft,
+                Err(_) => continue,
+            };
+            if !ft.is_dir() || ft.is_symlink() {
+                continue;
+            }
+            let name = entry.file_name().to_string_lossy().into_owned();
+            // Skip hidden dirs
+            if name.starts_with('.') {
+                continue;
+            }
+            let full = entry.path().to_string_lossy().into_owned();
+            // Default true; corrected when children are actually loaded
+            entries.push(DirEntry { name, path: full, has_children: true });
+        }
+        entries.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+        Ok(entries)
+    })
+    .await
+    .map_err(|e| format!("Task failed: {e}"))?
 }

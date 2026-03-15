@@ -417,6 +417,12 @@
           "markdownDescription": "Allows killing a PTY session"
         },
         {
+          "description": "Allows listing directory contents for folder tree browser",
+          "type": "string",
+          "const": "allow-list-directory",
+          "markdownDescription": "Allows listing directory contents for folder tree browser"
+        },
+        {
           "description": "Allows loading session state",
           "type": "string",
           "const": "allow-load-session",

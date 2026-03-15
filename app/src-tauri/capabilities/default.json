@@ -31,6 +31,7 @@
     "clipboard-manager:allow-write-text",
     "allow-save-clipboard-image",
     "shell:allow-open",
-    "allow-get-token-usage"
+    "allow-get-token-usage",
+    "allow-list-directory"
   ]
 }

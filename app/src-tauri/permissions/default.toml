@@ -79,3 +79,8 @@ commands.allow = ["save_clipboard_image"]
 identifier = "allow-get-token-usage"
 description = "Allows getting token usage statistics"
 commands.allow = ["get_token_usage"]
+
+[[permission]]
+identifier = "allow-list-directory"
+description = "Allows listing directory contents for folder tree browser"
+commands.allow = ["list_directory"]
