@@ -586,6 +586,8 @@ export function useAutocomplete(
 ): AutocompleteState {
   const suggestionsRef = useRef<string[]>([]);
   const currentIdxRef = useRef(0);
+  // Declared early — used by renderGhost/clearGhost closures below
+  const hasSuggestionRef = useRef(false);
   const seqRef = useRef(0);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cacheRef = useRef<Map<string, CacheEntry>>(new Map());
@@ -750,6 +752,20 @@ export function useAutocomplete(
         }
       }
 
+      // Show loading indicator if no file results are showing yet
+      if (newSuggestions.length === 0) {
+        const xterm = xtermRef.current;
+        if (xterm) {
+          const row = xterm.buffer.active.cursorY + xterm.buffer.active.baseY + 1;
+          const col = xterm.buffer.active.cursorX + 1;
+          savedCursorRef.current = { row, col };
+          xterm.write(`\x1b[${row};${col}H${ESC_DIM_ITALIC_GREY}...${ESC_RESET}`);
+          xterm.write(`\x1b[${row};${col}H`);
+          ghostVisibleRef.current = true;
+          lastGhostLenRef.current = 3;
+        }
+      }
+
       // Make LLM request
       const seq = ++seqRef.current;
       try {
@@ -762,18 +778,6 @@ export function useAutocomplete(
         // Response comes back via handleAutocompleteResponse (called from Terminal.tsx)
       } catch {
         // Silently ignore LLM errors
-      }
-    } else if (newSuggestions.length === 0 && input.length >= MIN_CHARS_LLM && toolIdx === 0) {
-      // No file matches but LLM request in flight — show loading indicator
-      const xterm = xtermRef.current;
-      if (xterm) {
-        const row = xterm.buffer.active.cursorY + xterm.buffer.active.baseY + 1;
-        const col = xterm.buffer.active.cursorX + 1;
-        savedCursorRef.current = { row, col };
-        xterm.write(`\x1b[${row};${col}H${ESC_DIM_ITALIC_GREY}...${ESC_RESET}`);
-        xterm.write(`\x1b[${row};${col}H`);
-        ghostVisibleRef.current = true;
-        lastGhostLenRef.current = 3;
       }
     }
   }, [enabled, projectPath, toolIdx, tabIdRef, renderGhost, dismiss]);
@@ -800,16 +804,6 @@ export function useAutocomplete(
     cacheRef.current.clear();
   }, [dismiss]);
 
-  // hasSuggestionRef is a ref so it's always current when read from
-  // event handlers (attachCustomKeyEventHandler) — unlike a computed
-  // value that would be stale between renders.
-  const hasSuggestionRef = useRef(false);
-  // Keep it in sync (updated by renderGhost/clearGhost/dismiss)
-  // Note: renderGhost sets ghostVisibleRef.current = true, clearGhost sets it false.
-  // We sync hasSuggestionRef in the same places:
-  // - renderGhost: hasSuggestionRef.current = true
-  // - clearGhost/dismiss: hasSuggestionRef.current = false
-
   return {
     hasSuggestionRef,
     accept,
@@ -817,7 +811,7 @@ export function useAutocomplete(
     dismiss,
     onInputChange,
     cleanup,
-    handleResponse: responseHandlerRef.current,
+    handleResponse: (s: string[], seq: number) => responseHandlerRef.current(s, seq),
   };
 }
 ```
