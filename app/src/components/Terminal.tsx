@@ -12,9 +12,6 @@ import BookmarkList from "./BookmarkList";
 import "@xterm/xterm/css/xterm.css";
 import "./Terminal.css";
 
-/** Single regex matching any cursor-repositioning escape sequence:
- *  ESC 7/8 (DEC save/restore), CSI s/u (ANSI save/restore), CSI row;colH (CUP).
- *  One pass replaces six sequential string scans on every PTY data chunk. */
 const ESC_CURSOR_HIDE = "\x1b[?25l";
 const ESC_CURSOR_SHOW = "\x1b[?25h";
 const MAX_BOOKMARK_TEXT = 200;
@@ -31,7 +28,7 @@ const RESIZE_REFLOW_MS = 500;
 /** Anvil ASCII art logo — 15 lines, generated from icon.png via convertico.com.
  *  Colors match the icon: dark brown hammer head, orange handle, steel anvil,
  *  blue-gray base. */
-const C = {
+const LOGO_COLORS = {
   HEAD: "\x1b[38;2;90;60;30m",    // dark brown — hammer head
   HANDLE: "\x1b[38;2;210;160;70m", // orange — hammer handle
   OUTLINE: "\x1b[38;2;50;50;50m",  // near-black — outlines
@@ -40,23 +37,27 @@ const C = {
   BLUE: "\x1b[38;2;90;140;170m",   // blue accent — base
   R: "\x1b[0m",
 };
-const ANSI_LOGO = [
-  `${C.OUTLINE}           ${C.HEAD}████`,
-  `${C.OUTLINE}         ${C.HEAD}███▓▓${C.OUTLINE}█${C.HANDLE}████████████${C.OUTLINE}███`,
-  `${C.OUTLINE}         ${C.HEAD}█▓▓▓▓${C.OUTLINE}█${C.HANDLE}▒▒▒▒▒▒▒▒▓▒▒▓${C.OUTLINE}██`,
-  `${C.OUTLINE}         ${C.HEAD}███▓▓${C.OUTLINE}██████████████`,
-  `${C.OUTLINE}      ██████${C.STEEL}▓▓${C.OUTLINE}████`,
-  `${C.OUTLINE}      ████████████`,
-  `${C.OUTLINE}     █████████████████`,
-  `${C.OUTLINE} ███${C.STEEL}▓██▓▓▓▓▓▓▓▓▓▓▓▓▓▓█▓▓${C.OUTLINE}██`,
-  `${C.OUTLINE} ██${C.STEEL}▓▓▓▓▓▓${C.LIGHT}▒▒▒▒▒▒▒▒▒▒▒${C.STEEL}▓▓▓▓${C.OUTLINE}██`,
-  `${C.OUTLINE}  █████${C.STEEL}▓▓${C.LIGHT}▒▒▒▒▒▒▒▒▒▒▒${C.STEEL}▓█▓${C.OUTLINE}███`,
-  `${C.OUTLINE}     ██${C.STEEL}▓▓▓▓▓▓▓▓▓▓▓▓▓▓${C.OUTLINE}██`,
-  `${C.OUTLINE}        ██${C.STEEL}▓▓▓▓▓▓▓▓${C.OUTLINE}█`,
-  `${C.OUTLINE}        ██${C.STEEL}▓▓▓▓▓▓▓▓${C.OUTLINE}█`,
-  `${C.OUTLINE}     ${C.BLUE}█████████████████`,
-  `${C.OUTLINE}     ${C.BLUE}██▓▓▓▓▓▓▓▓▓▓▓▓▓██`,
-].join("\r\n") + C.R;
+const ANSI_LOGO_PARTS = [
+  `${LOGO_COLORS.OUTLINE}           ${LOGO_COLORS.HEAD}████`,
+  `${LOGO_COLORS.OUTLINE}         ${LOGO_COLORS.HEAD}███▓▓${LOGO_COLORS.OUTLINE}█${LOGO_COLORS.HANDLE}████████████${LOGO_COLORS.OUTLINE}███`,
+  `${LOGO_COLORS.OUTLINE}         ${LOGO_COLORS.HEAD}█▓▓▓▓${LOGO_COLORS.OUTLINE}█${LOGO_COLORS.HANDLE}▒▒▒▒▒▒▒▒▓▒▒▓${LOGO_COLORS.OUTLINE}██`,
+  `${LOGO_COLORS.OUTLINE}         ${LOGO_COLORS.HEAD}███▓▓${LOGO_COLORS.OUTLINE}██████████████`,
+  `${LOGO_COLORS.OUTLINE}      ██████${LOGO_COLORS.STEEL}▓▓${LOGO_COLORS.OUTLINE}████`,
+  `${LOGO_COLORS.OUTLINE}      ████████████`,
+  `${LOGO_COLORS.OUTLINE}     █████████████████`,
+  `${LOGO_COLORS.OUTLINE} ███${LOGO_COLORS.STEEL}▓██▓▓▓▓▓▓▓▓▓▓▓▓▓▓█▓▓${LOGO_COLORS.OUTLINE}██`,
+  `${LOGO_COLORS.OUTLINE} ██${LOGO_COLORS.STEEL}▓▓▓▓▓▓${LOGO_COLORS.LIGHT}▒▒▒▒▒▒▒▒▒▒▒${LOGO_COLORS.STEEL}▓▓▓▓${LOGO_COLORS.OUTLINE}██`,
+  `${LOGO_COLORS.OUTLINE}  █████${LOGO_COLORS.STEEL}▓▓${LOGO_COLORS.LIGHT}▒▒▒▒▒▒▒▒▒▒▒${LOGO_COLORS.STEEL}▓█▓${LOGO_COLORS.OUTLINE}███`,
+  `${LOGO_COLORS.OUTLINE}     ██${LOGO_COLORS.STEEL}▓▓▓▓▓▓▓▓▓▓▓▓▓▓${LOGO_COLORS.OUTLINE}██`,
+  `${LOGO_COLORS.OUTLINE}        ██${LOGO_COLORS.STEEL}▓▓▓▓▓▓▓▓${LOGO_COLORS.OUTLINE}█`,
+  `${LOGO_COLORS.OUTLINE}        ██${LOGO_COLORS.STEEL}▓▓▓▓▓▓▓▓${LOGO_COLORS.OUTLINE}█`,
+  `${LOGO_COLORS.OUTLINE}     ${LOGO_COLORS.BLUE}█████████████████`,
+  `${LOGO_COLORS.OUTLINE}     ${LOGO_COLORS.BLUE}██▓▓▓▓▓▓▓▓▓▓▓▓▓██`,
+];
+const ANSI_LOGO = ANSI_LOGO_PARTS.join("\r\n") + LOGO_COLORS.R;
+/** Claude's banner is 3 lines; compute offset for CUP row adjustment. */
+const CLAUDE_BANNER_LINES = 3;
+const CUP_ROW_OFFSET = ANSI_LOGO_PARTS.length - CLAUDE_BANNER_LINES;
 
 /** Replace common non-ASCII characters with ASCII equivalents and strip control chars.
  *  This prevents encoding issues when pasting text from editors, web pages, or Word docs. */
@@ -507,27 +508,23 @@ export default memo(function Terminal({
       // (ESC[row;colH), so we offset all row numbers by the difference.
       // Reset to 0 on screen clear (ESC[2J/3J) since Claude redraws from scratch.
       let cupRowOffset = 0;
-      /** Detect screen-clear in a chunk. Returns the index after the clear
-       *  sequence, or -1 if none found. */
+      /** Detect the last screen-clear in a chunk. Returns the index after
+       *  the final clear sequence, or -1 if none found. Finds the last match
+       *  so that paired clears (ESC[2J + ESC[3J) are both passed through. */
       const screenClearIdx = (s: string): number => {
+        let maxEnd = -1;
         for (const seq of ["\x1b[2J", "\x1b[3J"]) {
-          const i = s.indexOf(seq);
-          if (i !== -1) return i + seq.length;
+          const i = s.lastIndexOf(seq);
+          if (i !== -1) maxEnd = Math.max(maxEnd, i + seq.length);
         }
-        return -1;
+        return maxEnd;
       };
-      /** Adjust absolute cursor positioning sequences in data by cupRowOffset. */
+      /** Adjust absolute cursor positioning sequences in data by cupRowOffset.
+       *  Screen clear handling is done in the data callback before this is called. */
       const adjustCup = (s: string): string => {
         if (cupRowOffset === 0) return s;
-        // On screen clear, Claude redraws its entire TUI including its banner.
-        // Reset offset; banner re-interception is handled in the data callback.
-        const clearEnd = screenClearIdx(s);
-        if (clearEnd !== -1) {
-          cupRowOffset = 0;
-          return s;
-        }
-        return s.replace(/\x1b\[(\d+)(;[\d]*)?([Hfd])/g, (_match, row, col, cmd) => {
-          const newRow = parseInt(row, 10) + cupRowOffset;
+        return s.replace(/\x1b\[(\d*)(;[\d]*)?([Hfd])/g, (_match, row, col, cmd) => {
+          const newRow = (row ? parseInt(row, 10) : 1) + cupRowOffset;
           return `\x1b[${newRow}${col || ""}${cmd}`;
         });
       };
@@ -551,9 +548,14 @@ export default memo(function Terminal({
                 ? bannerBuf.slice(endMatch.index + 1) // keep from \n onward (the ─── line)
                 : bannerBuf; // fallback: write everything
               bannerBuf = null;
-              cupRowOffset = 12; // 15 (logo lines) - 3 (Claude banner lines)
-              // Write Anvil logo then the rest of Claude's TUI (with adjusted rows)
-              xtermRef.current?.write(ANSI_LOGO + "\r\n" + adjustCup(rest));
+              if (endMatch) {
+                cupRowOffset = CUP_ROW_OFFSET;
+                xtermRef.current?.write(ANSI_LOGO + "\r\n" + adjustCup(rest));
+              } else {
+                // Overflow fallback — no logo substitution, no offset
+                cupRowOffset = 0;
+                xtermRef.current?.write(rest);
+              }
             }
             return;
           }

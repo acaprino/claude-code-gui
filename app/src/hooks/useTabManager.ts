@@ -126,6 +126,7 @@ export function useTabManager() {
   // Factory for singleton tab toggles (about, usage, system-prompt).
   // Close if active, activate if background, create if none.
   const toggleSingletonTab = useCallback((tabType: Tab["type"]) => {
+    let nextActiveId: string | null = null;
     setTabs((prev) => {
       const existing = prev.find((t) => t.type === tabType);
       if (existing) {
@@ -133,15 +134,15 @@ export function useTabManager() {
           const next = prev.filter((t) => t.id !== existing.id);
           if (next.length === 0) {
             const newTab = createNewTab();
-            setActiveTabId(newTab.id);
+            nextActiveId = newTab.id;
             return [newTab];
           }
           const idx = prev.findIndex((t) => t.id === existing.id);
           const newIdx = Math.min(idx, next.length - 1);
-          setActiveTabId(next[newIdx].id);
+          nextActiveId = next[newIdx].id;
           return next;
         }
-        setActiveTabId(existing.id);
+        nextActiveId = existing.id;
         return prev;
       }
       const tab: Tab = {
@@ -150,9 +151,10 @@ export function useTabManager() {
         hasNewOutput: false,
         exitCode: null,
       };
-      setActiveTabId(tab.id);
+      nextActiveId = tab.id;
       return [...prev, tab];
     });
+    if (nextActiveId) setActiveTabId(nextActiveId);
   }, []);
 
   const toggleAboutTab = useCallback(() => toggleSingletonTab("about"), [toggleSingletonTab]);
@@ -161,6 +163,7 @@ export function useTabManager() {
 
   const closeTab = useCallback(
     (tabId: string) => {
+      let nextActiveId: string | null = null;
       setTabs((prev) => {
         const idx = prev.findIndex((t) => t.id === tabId);
         if (idx === -1) return prev;
@@ -171,17 +174,20 @@ export function useTabManager() {
           // Never auto-close the window — open a new-tab page instead.
           // destroy() bypasses CloseRequested and causes silent shutdown after standby.
           const newTab = createNewTab();
-          setActiveTabId(newTab.id);
+          nextActiveId = newTab.id;
           return [newTab];
         }
 
         if (tabId === activeTabIdRef.current) {
           const newIdx = Math.min(idx, next.length - 1);
-          setActiveTabId(next[newIdx].id);
+          nextActiveId = next[newIdx].id;
         }
 
         return next;
       });
+      // Set active tab outside the updater to avoid side effects in the
+      // state updater (React Strict Mode double-invokes updaters).
+      if (nextActiveId) setActiveTabId(nextActiveId);
     },
     [],
   );
@@ -219,29 +225,31 @@ export function useTabManager() {
 
   // R7: Only update activeTabId; guard setTabs to avoid unnecessary array creation
   const nextTab = useCallback(() => {
+    let nextActiveId: string | null = null;
     setTabs((prev) => {
       const idx = prev.findIndex((t) => t.id === activeTabIdRef.current);
       const nextIdx = (idx + 1) % prev.length;
-      const nextId = prev[nextIdx].id;
-      setActiveTabId(nextId);
+      nextActiveId = prev[nextIdx].id;
       if (!prev[nextIdx].hasNewOutput) return prev;
       return prev.map((t) =>
-        t.id === nextId ? { ...t, hasNewOutput: false } : t,
+        t.id === nextActiveId ? { ...t, hasNewOutput: false } : t,
       );
     });
+    if (nextActiveId) setActiveTabId(nextActiveId);
   }, []);
 
   const prevTab = useCallback(() => {
+    let nextActiveId: string | null = null;
     setTabs((prev) => {
       const idx = prev.findIndex((t) => t.id === activeTabIdRef.current);
       const nextIdx = (idx - 1 + prev.length) % prev.length;
-      const nextId = prev[nextIdx].id;
-      setActiveTabId(nextId);
+      nextActiveId = prev[nextIdx].id;
       if (!prev[nextIdx].hasNewOutput) return prev;
       return prev.map((t) =>
-        t.id === nextId ? { ...t, hasNewOutput: false } : t,
+        t.id === nextActiveId ? { ...t, hasNewOutput: false } : t,
       );
     });
+    if (nextActiveId) setActiveTabId(nextActiveId);
   }, []);
 
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? tabs[0];
