@@ -164,6 +164,8 @@ async function handleCreate(cmd) {
   });
 
   emit({ evt: "status", tabId, status: "started", model: model || "default" });
+  // SDK waits for first user message via the input stream — signal the frontend
+  emit({ evt: "input_required", tabId });
 }
 
 async function consumeQuery(tabId, q) {
