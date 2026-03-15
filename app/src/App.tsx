@@ -320,11 +320,9 @@ function AppContent() {
                   <Terminal
                     tabId={tab.id}
                     projectPath={tab.projectPath!}
-                    toolIdx={tab.toolIdx ?? 0}
                     modelIdx={tab.modelIdx ?? 0}
                     effortIdx={tab.effortIdx ?? 0}
                     skipPerms={tab.skipPerms ?? false}
-                    autocompact={tab.autocompact ?? false}
                     systemPrompt={systemPrompt}
                     themeIdx={themeIdx}
                     themeColors={THEMES[themeIdx]?.colors ?? THEMES[0].colors}

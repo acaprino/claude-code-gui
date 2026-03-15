@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { memo, useState, useEffect, useRef, useCallback } from "react";
 import { Settings, THEMES, SORT_ORDERS } from "../../types";
 import SegmentedControl from "../SegmentedControl";
 import Modal from "../Modal";
@@ -29,7 +29,7 @@ interface SettingsModalProps {
   onUpdate: (updates: Partial<Settings>) => void;
 }
 
-export default function SettingsModal({ settings, onClose, onUpdate }: SettingsModalProps) {
+export default memo(function SettingsModal({ settings, onClose, onUpdate }: SettingsModalProps) {
   const handleSortChange = useCallback((idx: number) => {
     onUpdate({ sort_idx: idx });
   }, [onUpdate]);
@@ -258,4 +258,4 @@ export default function SettingsModal({ settings, onClose, onUpdate }: SettingsM
       </div>
     </Modal>
   );
-}
+});

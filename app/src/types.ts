@@ -190,6 +190,23 @@ export const THEMES: Theme[] = [
   },
 ];
 
+/** Shared tab label logic — used by TabBar and TabSidebar. */
+export function getTabLabel(tab: Tab): string {
+  const baseName =
+    tab.type === "agent"
+      ? (tab.projectName ?? "Terminal")
+      : tab.type === "about"
+        ? "About"
+        : tab.type === "usage"
+          ? "Usage"
+          : tab.type === "system-prompt"
+            ? "System Prompts"
+            : tab.type === "sessions"
+              ? "Sessions"
+              : "New Tab";
+  return tab.tagline ? `${baseName} \u2014 ${tab.tagline}` : baseName;
+}
+
 // ── Agent SDK types ─────────────────────────────────────────────────
 
 export type AgentEvent =

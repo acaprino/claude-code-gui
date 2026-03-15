@@ -1,6 +1,6 @@
 import { memo, useState, useCallback, useRef, useEffect } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { Tab } from "../types";
+import { Tab, getTabLabel } from "../types";
 import "./TabBar.css";
 
 const appWindow = getCurrentWindow();
@@ -69,6 +69,11 @@ export default memo(function TabBar({ tabs, activeTabId, onActivate, onClose, on
     setContextMenu(null);
   }, [onSaveToProjects]);
 
+  // Clean up closing animation timers on unmount
+  useEffect(() => () => {
+    closingTimersRef.current.forEach((timer) => clearTimeout(timer));
+  }, []);
+
   // Close context menu on click outside or Escape
   const contextMenuOpen = contextMenu != null;
   useEffect(() => {
@@ -89,19 +94,7 @@ export default memo(function TabBar({ tabs, activeTabId, onActivate, onClose, on
         {tabs.map((tab) => {
           const isActive = tab.id === activeTabId;
           const isClosing = closingIds.has(tab.id);
-          const baseName =
-            tab.type === "agent"
-              ? (tab.projectName ?? "Terminal")
-              : tab.type === "about"
-                ? "About"
-                : tab.type === "usage"
-                  ? "Usage"
-                  : tab.type === "system-prompt"
-                    ? "System Prompts"
-                    : tab.type === "sessions"
-                      ? "Sessions"
-                      : "New Tab";
-          const label = tab.tagline ? `${baseName} \u2014 ${tab.tagline}` : baseName;
+          const label = getTabLabel(tab);
 
           return (
             <div

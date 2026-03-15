@@ -127,7 +127,6 @@ fn main() {
             commands::save_prompt,
             commands::update_prompt,
             commands::delete_prompt,
-            commands::sidecar_available,
             commands::spawn_agent,
             commands::agent_send,
             commands::agent_resume,

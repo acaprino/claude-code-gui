@@ -140,11 +140,9 @@ function sanitizePastedText(text: string): string {
 interface TerminalProps {
   tabId: string;
   projectPath: string;
-  toolIdx: number;
   modelIdx: number;
   effortIdx: number;
   skipPerms: boolean;
-  autocompact: boolean;
   systemPrompt: string;
   themeIdx: number;
   themeColors: ThemeColors;
@@ -163,11 +161,9 @@ interface TerminalProps {
 export default memo(function Terminal({
   tabId,
   projectPath,
-  toolIdx: _toolIdx,
   modelIdx,
   effortIdx,
   skipPerms,
-  autocompact: _autocompact,
   systemPrompt,
   themeIdx,
   themeColors,
@@ -186,13 +182,10 @@ export default memo(function Terminal({
   const xtermRef = useRef<XTerm | null>(null);
   const [xtermReady, setXtermReady] = useState<XTerm | null>(null);
   const bookmarksRef = useRef(new Map<number, string>());
-  const lastBookmarkLineRef = useRef(-1);
   const prevBufferLenRef = useRef(0);
-  const fitAddonRef = useRef<FitAddon | null>(null);
   const fitAndResizeRef = useRef<(() => void) | null>(null);
   const exitedRef = useRef(false);
-  const sessionIdRef = useRef<string | null>(null);
-  const channelRef = useRef<any>(null);
+  const agentStartedRef = useRef(false);
   const resizeRafRef = useRef(0);
   const lastResizeTimeRef = useRef(0);
   const tabIdRef = useRef(tabId);
@@ -361,7 +354,7 @@ export default memo(function Terminal({
           onRequestCloseRef.current(tabIdRef.current);
           return;
         }
-        if (!sessionIdRef.current) return;
+        if (!agentStartedRef.current) return;
         // Try text first — Tauri plugin, then navigator.clipboard fallback
         let text: string | null = null;
         try {
@@ -384,12 +377,12 @@ export default memo(function Terminal({
         // Fallback: try clipboard image — save as PNG temp file and paste the path
         try {
           const path = await saveClipboardImage();
-          const quoted = path.includes(" ") ? `"${path}"` : path;
+          const quoted = `"${path}"`;
           tryAgentWrite(quoted);
         } catch (err) {
           console.warn("Clipboard paste failed:", err);
           xtermRef.current?.write("\x07"); // bell
-          const msg = (err instanceof Error ? err.message : String(err)).replace(/\x1b/g, "");
+          const msg = (err instanceof Error ? err.message : String(err)).replace(/[\x00-\x1f\x7f-\x9f]/g, "");
           xtermRef.current?.write(`\r\n\x1b[33m[paste failed: ${msg}]\x1b[0m`);
         }
       } finally {
@@ -403,7 +396,7 @@ export default memo(function Terminal({
       if (event.ctrlKey && event.key === "F4") return false;
       if (event.ctrlKey && event.key === "Tab") return false;
       // Handle Ctrl+C copy — if text is selected, copy to clipboard;
-      // otherwise let it pass through as SIGINT to the PTY.
+      // otherwise let Ctrl+C propagate to the agent (handled in onData).
       if (event.ctrlKey && !event.shiftKey && event.key === "c") {
         const selection = xterm.getSelection();
         if (selection) {
@@ -442,7 +435,7 @@ export default memo(function Terminal({
         onRequestCloseRef.current(tabIdRef.current);
         return;
       }
-      if (!sessionIdRef.current) return;
+      if (!agentStartedRef.current) return;
 
       const state = agentInputStateRef.current;
 
@@ -471,7 +464,6 @@ export default memo(function Terminal({
             const promptLine = xterm.buffer.active.baseY + xterm.buffer.active.cursorY;
             const label = text.length > MAX_BOOKMARK_TEXT ? text.slice(0, MAX_BOOKMARK_TEXT) + "…" : text;
             bookmarksRef.current.set(promptLine, `❯ ${label}`);
-            lastBookmarkLineRef.current = promptLine;
             responseBookmarkedRef.current = false;
 
             agentInputStateRef.current = "processing";
@@ -533,7 +525,6 @@ export default memo(function Terminal({
         const bm = bookmarksRef.current;
         if (bm.size === 0) return;
         bm.clear();
-        lastBookmarkLineRef.current = -1;
       }
     });
 
@@ -569,34 +560,18 @@ export default memo(function Terminal({
     };
 
     xtermRef.current = xterm;
-    fitAddonRef.current = fitAddon;
     setXtermReady(xterm);
-
-    let lastCols = 0;
-    let lastRows = 0;
-    let resizeTimer: ReturnType<typeof setTimeout> | undefined;
-    let cursorShowTimer: ReturnType<typeof setTimeout> | undefined;
-
-    const syncPtySize = (_debounce: boolean) => {
-      const cols = xterm.cols;
-      const rows = xterm.rows;
-      if (cols !== lastCols || rows !== lastRows) {
-        lastCols = cols;
-        lastRows = rows;
-      }
-    };
 
     const fitAndResize = () => {
       lastResizeTimeRef.current = Date.now();
       fitAddon.fit();
-      syncPtySize(false);
     };
     fitAndResizeRef.current = fitAndResize;
 
     // Cancellation flag — checked in async callbacks to prevent post-disposal access
     let cancelled = false;
 
-    // Throttle ResizeObserver to one fit per frame + debounce PTY resize
+    // Throttle ResizeObserver to one fit per frame
     const observer = new ResizeObserver(() => {
       if (resizeRafRef.current) return;
       resizeRafRef.current = requestAnimationFrame(() => {
@@ -604,7 +579,6 @@ export default memo(function Terminal({
         if (cancelled) return;
         lastResizeTimeRef.current = Date.now();
         fitAddon.fit();
-        syncPtySize(true);
       });
     });
     observer.observe(containerRef.current);
@@ -638,7 +612,6 @@ export default memo(function Terminal({
           // Use first line of response text as preview
           const preview = event.text.split(/\r?\n/)[0].slice(0, MAX_BOOKMARK_TEXT) || "Response";
           bookmarksRef.current.set(responseLine, `◆ ${preview}`);
-          lastBookmarkLineRef.current = responseLine;
         }
 
         const rendered = renderAgentEvent(event, themeColorsRef.current, xterm.cols);
@@ -693,19 +666,18 @@ export default memo(function Terminal({
         skipPerms,
         handleAgentEvent,
       )
-        .then((channel) => {
+        .then(() => {
           if (cancelled) {
             killAgent(tabId).catch(() => {});
             return;
           }
-          sessionIdRef.current = tabId; // Use tabId as session key for agent mode
-          channelRef.current = channel;
+          agentStartedRef.current = true;
           onSessionCreatedRef.current(tabIdRef.current, tabId);
         })
         .catch((err) => {
           if (cancelled) return;
           onErrorRef.current(tabIdRef.current, String(err));
-          xterm.write(`\r\n\x1b[91mError: ${String(err).replace(/\x1b/g, "")}\x1b[0m`);
+          xterm.write(`\r\n\x1b[91mError: ${String(err).replace(/[\x00-\x1f\x7f-\x9f]/g, "")}\x1b[0m`);
         });
     });
 
@@ -748,7 +720,7 @@ export default memo(function Terminal({
     getCurrentWebview().onDragDropEvent((event) => {
       if (cancelled) return;
       if (event.payload.type !== "drop") return;
-      if (exitedRef.current || !sessionIdRef.current || !isActiveRef.current) return;
+      if (exitedRef.current || !agentStartedRef.current || !isActiveRef.current) return;
       const safePaths = event.payload.paths.filter((p) => SAFE_WIN_PATH.test(p));
       if (safePaths.length === 0) return;
       const paths = safePaths
@@ -764,8 +736,6 @@ export default memo(function Terminal({
       cancelled = true;
       cancelAnimationFrame(rafId);
       cancelAnimationFrame(resizeRafRef.current);
-      clearTimeout(resizeTimer);
-      clearTimeout(cursorShowTimer);
       clearInterval(webglHealthInterval);
       if (spinnerTimerRef.current) {
         clearInterval(spinnerTimerRef.current);
@@ -775,11 +745,8 @@ export default memo(function Terminal({
       containerRef.current?.removeEventListener("paste", handleNativePaste, true);
       unlistenDragDrop?.();
       observer.disconnect();
-      if (sessionIdRef.current) {
-        killAgent(sessionIdRef.current).catch(() => {});
-      }
-      if (channelRef.current) {
-        channelRef.current.onmessage = () => {};
+      if (agentStartedRef.current) {
+        killAgent(tabIdRef.current).catch(() => {});
       }
       try { currentWebgl?.dispose(); } catch { /* ok */ }
       currentWebgl = null;
@@ -800,7 +767,7 @@ export default memo(function Terminal({
       const fitRafId = requestAnimationFrame(() => {
         if (!xtermRef.current) return;
         // Cancel any pending ResizeObserver rAF to avoid a redundant
-        // second fit() + PTY resize in the same frame.
+        // second fit() in the same frame.
         if (resizeRafRef.current) {
           cancelAnimationFrame(resizeRafRef.current);
           resizeRafRef.current = 0;

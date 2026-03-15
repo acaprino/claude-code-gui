@@ -294,22 +294,6 @@ pub async fn delete_prompt(id: String) -> Result<(), String> {
 
 // ── Agent SDK commands ──────────────────────────────────────────────
 
-#[derive(serde::Serialize)]
-pub struct SidecarStatus {
-    pub available: bool,
-    pub reason: Option<String>,
-}
-
-#[tauri::command]
-pub fn sidecar_available(
-    sidecar: State<'_, Arc<SidecarManager>>,
-) -> SidecarStatus {
-    SidecarStatus {
-        available: sidecar.available(),
-        reason: sidecar.unavailable_reason(),
-    }
-}
-
 #[tauri::command]
 pub fn spawn_agent(
     sidecar: State<'_, Arc<SidecarManager>>,
