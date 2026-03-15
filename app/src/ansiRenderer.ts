@@ -75,7 +75,8 @@ export function renderAgentEvent(event: AgentEvent, theme: ThemeColors, cols: nu
     }
 
     case "permission": {
-      return `\r\n${fg(theme.yellow)}⚠ Allow ${BOLD}${event.tool}${RESET}${fg(theme.yellow)}: ${event.description}? [Y/n]${RESET} `;
+      // Only render the question — the interactive selector is drawn by Terminal.tsx
+      return `\r\n${fg(theme.yellow)}⚠ Allow ${BOLD}${event.tool}${RESET}${fg(theme.yellow)}: ${event.description}?${RESET}\r\n`;
     }
 
     case "inputRequired": {

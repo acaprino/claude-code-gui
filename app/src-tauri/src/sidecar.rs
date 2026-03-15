@@ -16,7 +16,7 @@ pub enum AgentEvent {
     Assistant { text: String, streaming: bool },
     ToolUse { tool: String, input: serde_json::Value },
     ToolResult { tool: String, output: String, success: bool },
-    Permission { tool: String, description: String },
+    Permission { tool: String, description: String, suggestions: serde_json::Value },
     InputRequired {},
     Thinking { text: String },
     Status { status: String, model: String },
@@ -59,6 +59,8 @@ struct SidecarEvent {
     success: bool,
     #[serde(default)]
     description: String,
+    #[serde(default)]
+    permission_suggestions: Option<serde_json::Value>,
     #[serde(default)]
     status: String,
     #[serde(default)]
@@ -297,7 +299,7 @@ impl SidecarManager {
                         "assistant" => AgentEvent::Assistant { text: event.text, streaming: event.streaming },
                         "tool_use" => AgentEvent::ToolUse { tool: event.tool, input: event.input.unwrap_or(serde_json::Value::Null) },
                         "tool_result" => AgentEvent::ToolResult { tool: event.tool, output: event.output, success: event.success },
-                        "permission" => AgentEvent::Permission { tool: event.tool, description: event.description },
+                        "permission" => AgentEvent::Permission { tool: event.tool, description: event.description, suggestions: event.permission_suggestions.unwrap_or(serde_json::Value::Array(vec![])) },
                         "input_required" => AgentEvent::InputRequired {},
                         "thinking" => AgentEvent::Thinking { text: event.text },
                         "status" => AgentEvent::Status { status: event.status, model: event.model },

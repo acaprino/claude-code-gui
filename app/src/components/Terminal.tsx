@@ -207,6 +207,10 @@ export default memo(function Terminal({
   const agentInputBufRef = useRef("");
   const spinnerTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const responseBookmarkedRef = useRef(false);
+  // Permission selector state
+  const permissionSelIdxRef = useRef(0);
+  const permissionRowRef = useRef(0); // row where selector options start
+  const permissionOptionsRef = useRef<{ label: string; allow: boolean; suggestions?: unknown[] }[]>([]);
   const themeColorsRef = useRef(themeColors);
 
   const autocomplete = useAutocomplete(
@@ -218,6 +222,29 @@ export default memo(function Terminal({
   );
   const autocompleteRef = useRef(autocomplete);
   autocompleteRef.current = autocomplete;
+
+  /** Render the interactive permission selector at the saved row. */
+  const renderPermissionSelector = (xterm: XTerm, selectedIdx: number) => {
+    const row = permissionRowRef.current;
+    const options = permissionOptionsRef.current;
+    if (row <= 0 || options.length === 0) return;
+    const tc = themeColorsRef.current;
+    const accent = tc.accent;
+    const dim = "\x1b[2m";
+    const bold = "\x1b[1m";
+    const reset = "\x1b[0m";
+    const fgAccent = `\x1b[38;2;${parseInt(accent.slice(1, 3), 16)};${parseInt(accent.slice(3, 5), 16)};${parseInt(accent.slice(5, 7), 16)}m`;
+    for (let i = 0; i < options.length; i++) {
+      const isSelected = i === selectedIdx;
+      const line = isSelected
+        ? `  ${fgAccent}${bold}❯ ${options[i].label}${reset}`
+        : `  ${dim}  ${options[i].label}${reset}`;
+      xterm.write(`\x1b[${row + i};1H\x1b[K${line}`);
+    }
+    // Hint line after options
+    xterm.write(`\x1b[${row + options.length};1H\x1b[K${dim}Enter to confirm · ↑/↓ to navigate · Esc to deny${reset}`);
+    xterm.write(ESC_CURSOR_HIDE);
+  };
 
   useEffect(() => {
     themeColorsRef.current = themeColors;
@@ -484,15 +511,42 @@ export default memo(function Terminal({
       const state = agentInputStateRef.current;
 
       if (state === "awaiting_permission") {
-        // Only accept Y/y/N/n/Enter
-        if (data === "Y" || data === "y" || data === "\r") {
-          xterm.write("Y\r\n");
-          respondPermission(tabIdRef.current, true).catch(() => {});
+        const options = permissionOptionsRef.current;
+        const count = options.length;
+        if (data === "\x1b[A") {
+          // Arrow up
+          permissionSelIdxRef.current = (permissionSelIdxRef.current - 1 + count) % count;
+          renderPermissionSelector(xterm, permissionSelIdxRef.current);
+        } else if (data === "\x1b[B") {
+          // Arrow down
+          permissionSelIdxRef.current = (permissionSelIdxRef.current + 1) % count;
+          renderPermissionSelector(xterm, permissionSelIdxRef.current);
+        } else if (data === "\r") {
+          // Enter confirms current selection
+          const opt = options[permissionSelIdxRef.current];
+          // Clear selector lines + hint
+          const row = permissionRowRef.current;
+          for (let i = 0; i <= count; i++) xterm.write(`\x1b[${row + i};1H\x1b[K`);
+          xterm.write(`\x1b[${row};1H  ${opt.label}\r\n`);
+          respondPermission(tabIdRef.current, opt.allow, opt.suggestions).catch(() => {});
           agentInputStateRef.current = "processing";
-        } else if (data === "N" || data === "n") {
-          xterm.write("N\r\n");
+          xterm.write(ESC_CURSOR_HIDE);
+        } else if (data === "\x1b" || data === "N" || data === "n") {
+          // Esc or N = deny
+          const row = permissionRowRef.current;
+          for (let i = 0; i <= count; i++) xterm.write(`\x1b[${row + i};1H\x1b[K`);
+          xterm.write(`\x1b[${row};1H  No\r\n`);
           respondPermission(tabIdRef.current, false).catch(() => {});
           agentInputStateRef.current = "processing";
+          xterm.write(ESC_CURSOR_HIDE);
+        } else if (data === "Y" || data === "y") {
+          // Y = quick allow (first option)
+          const row = permissionRowRef.current;
+          for (let i = 0; i <= count; i++) xterm.write(`\x1b[${row + i};1H\x1b[K`);
+          xterm.write(`\x1b[${row};1H  Yes\r\n`);
+          respondPermission(tabIdRef.current, true).catch(() => {});
+          agentInputStateRef.current = "processing";
+          xterm.write(ESC_CURSOR_HIDE);
         }
         return;
       }
@@ -680,6 +734,28 @@ export default memo(function Terminal({
         } else if (event.type === "permission") {
           stopSpinner();
           agentInputStateRef.current = "awaiting_permission";
+          // Build options: Yes, [session-allow if suggestions], No
+          const options: { label: string; allow: boolean; suggestions?: unknown[] }[] = [
+            { label: "Yes", allow: true },
+          ];
+          if (event.suggestions && event.suggestions.length > 0) {
+            // Generate human-readable label from suggestions
+            const s = event.suggestions[0];
+            let sessionLabel = `Yes, allow ${event.tool} for this session`;
+            if (s.rules && s.rules.length > 0 && s.rules[0].ruleContent) {
+              sessionLabel = `Yes, allow ${event.tool} from ${s.rules[0].ruleContent} this session`;
+            }
+            options.push({ label: sessionLabel, allow: true, suggestions: event.suggestions });
+          }
+          options.push({ label: "No", allow: false });
+          permissionOptionsRef.current = options;
+          permissionSelIdxRef.current = 0;
+          // Save the row AFTER the rendered text (where options will go)
+          const optRow = xterm.buffer.active.baseY + xterm.buffer.active.cursorY + 1;
+          permissionRowRef.current = optRow;
+          // Write blank lines to make room for options + hint
+          for (let i = 0; i < options.length + 1; i++) xterm.write("\r\n");
+          renderPermissionSelector(xterm, 0);
           onTaglineChangeRef.current?.(tabIdRef.current, `Permission: ${event.tool}`);
         } else if (event.type === "toolUse") {
           const inp = event.input as Record<string, string> | undefined;

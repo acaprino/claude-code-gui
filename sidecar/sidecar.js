@@ -90,6 +90,7 @@ async function handleCreate(cmd) {
         tool: toolName,
         description: String(description),
         toolUseId: opts.toolUseID,
+        permissionSuggestions: opts.suggestions || [],
       });
 
       // Wait for permission response from frontend
@@ -339,7 +340,11 @@ function handlePermissionResponse(cmd) {
   session.pendingPermission = null;
 
   if (cmd.allow) {
-    resolve({ behavior: "allow" });
+    const result = { behavior: "allow" };
+    if (cmd.updatedPermissions && cmd.updatedPermissions.length > 0) {
+      result.updatedPermissions = cmd.updatedPermissions;
+    }
+    resolve(result);
   } else {
     resolve({ behavior: "deny", message: "Denied by user" });
   }

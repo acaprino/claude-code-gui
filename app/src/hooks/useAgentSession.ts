@@ -80,8 +80,8 @@ export async function killAgent(tabId: string): Promise<void> {
   await invoke("agent_kill", { tabId });
 }
 
-export async function respondPermission(tabId: string, allow: boolean): Promise<void> {
-  await invoke("agent_permission", { tabId, allow });
+export async function respondPermission(tabId: string, allow: boolean, updatedPermissions?: unknown[]): Promise<void> {
+  await invoke("agent_permission", { tabId, allow, updatedPermissions: updatedPermissions || null });
 }
 
 export async function setAgentModel(tabId: string, model: string): Promise<void> {

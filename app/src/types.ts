@@ -209,11 +209,21 @@ export function getTabLabel(tab: Tab): string {
 
 // ── Agent SDK types ─────────────────────────────────────────────────
 
+/** Permission update suggestion from Agent SDK (mirrors PermissionUpdate type). */
+export interface PermissionSuggestion {
+  type: string;
+  rules?: { toolName: string; ruleContent?: string }[];
+  behavior?: string;
+  destination?: string;
+  mode?: string;
+  directories?: string[];
+}
+
 export type AgentEvent =
   | { type: "assistant"; text: string; streaming: boolean }
   | { type: "toolUse"; tool: string; input: unknown }
   | { type: "toolResult"; tool: string; output: string; success: boolean }
-  | { type: "permission"; tool: string; description: string }
+  | { type: "permission"; tool: string; description: string; suggestions?: PermissionSuggestion[] }
   | { type: "inputRequired" }
   | { type: "thinking"; text: string }
   | { type: "status"; status: string; model: string }

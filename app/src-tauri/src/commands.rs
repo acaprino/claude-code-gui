@@ -441,12 +441,17 @@ pub fn agent_permission(
     sidecar: State<'_, Arc<SidecarManager>>,
     tab_id: String,
     allow: bool,
+    updated_permissions: Option<serde_json::Value>,
 ) -> Result<(), String> {
-    sidecar.send_command(&serde_json::json!({
+    let mut cmd = serde_json::json!({
         "cmd": "permission_response",
         "tabId": tab_id,
         "allow": allow,
-    }))
+    });
+    if let Some(perms) = updated_permissions {
+        cmd["updatedPermissions"] = perms;
+    }
+    sidecar.send_command(&cmd)
 }
 
 #[tauri::command]
