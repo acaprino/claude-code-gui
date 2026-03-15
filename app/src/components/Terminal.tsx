@@ -585,8 +585,11 @@ export default memo(function Terminal({
       }
       if (spinnerActive) {
         spinnerActive = false;
-        // Clear the spinner line — \r goes to column 0, \x1b[2K erases the line
-        xterm.write("\r\x1b[2K");
+        // Clear spinner line and move cursor up to the prompt line.
+        // The next content (streaming text or result) typically starts with
+        // \r\n or \n, which brings the cursor back down — so the response
+        // appears immediately below the prompt with no blank gap.
+        xterm.write("\r\x1b[2K\x1b[A");
       }
     };
 
