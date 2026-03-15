@@ -44,11 +44,11 @@ pub struct Settings {
     pub skip_perms: bool,
     #[serde(default)]
     pub autocompact: bool,
-    #[serde(default)]
+    #[serde(default, skip_serializing)]
     pub system_prompts: Vec<SystemPrompt>,
     #[serde(default)]
     pub active_prompt_ids: Vec<String>,
-    #[serde(default)]
+    #[serde(default, skip_serializing)]
     pub prompts_seeded: bool,
     #[serde(default = "default_true")]
     pub security_gate: bool,

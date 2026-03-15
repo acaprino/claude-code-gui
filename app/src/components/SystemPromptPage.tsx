@@ -1,4 +1,5 @@
 import { memo, useState, useEffect, useRef, useCallback } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { useProjectsContext } from "../contexts/ProjectsContext";
 import { SystemPrompt } from "../types";
 import { Banner, Sep } from "./GsdPrimitives";
@@ -12,16 +13,18 @@ interface SystemPromptPageProps {
   tabId: string;
   onRequestClose: (tabId: string) => void;
   isActive: boolean;
+  prompts: SystemPrompt[];
+  onPromptsChanged: () => void;
 }
 
-function SystemPromptPage({ tabId, onRequestClose, isActive }: SystemPromptPageProps) {
+function SystemPromptPage({ tabId, onRequestClose, isActive, prompts, onPromptsChanged }: SystemPromptPageProps) {
   const { settings, updateSettings } = useProjectsContext();
 
-  const prompts = settings?.system_prompts ?? [];
   const activeIds = settings?.active_prompt_ids ?? [];
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
+  const [editDescription, setEditDescription] = useState("");
   const [editContent, setEditContent] = useState("");
   const [isCreating, setIsCreating] = useState(false);
 
@@ -57,6 +60,7 @@ function SystemPromptPage({ tabId, onRequestClose, isActive }: SystemPromptPageP
 
   const handleCreate = useCallback(() => {
     setEditName("");
+    setEditDescription("");
     setEditContent("");
     setEditingId(null);
     setIsCreating(true);
@@ -64,46 +68,49 @@ function SystemPromptPage({ tabId, onRequestClose, isActive }: SystemPromptPageP
 
   const handleEdit = useCallback((prompt: SystemPrompt) => {
     setEditName(prompt.name);
+    setEditDescription(prompt.description ?? "");
     setEditContent(prompt.content);
     setEditingId(prompt.id);
     setIsCreating(false);
   }, []);
 
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
     const name = editName.trim();
     const content = editContent.trim();
+    const description = editDescription.trim();
     if (!name || !content) return;
 
-    if (isCreating) {
-      const newPrompt: SystemPrompt = {
-        id: crypto.randomUUID(),
-        name,
-        content,
-      };
-      updateSettings({
-        system_prompts: [...prompts, newPrompt],
-      });
-    } else if (editingId) {
-      updateSettings({
-        system_prompts: prompts.map((p) =>
-          p.id === editingId ? { ...p, name, content } : p
-        ),
-      });
+    try {
+      if (isCreating) {
+        await invoke<string>("save_prompt", { name, description, content });
+      } else if (editingId) {
+        const newSlug = await invoke<string>("update_prompt", { id: editingId, name, description, content });
+        if (newSlug !== editingId && activeIds.includes(editingId)) {
+          updateSettings({ active_prompt_ids: activeIds.map((aid) => aid === editingId ? newSlug : aid) });
+        }
+      }
+      onPromptsChanged();
+      setIsCreating(false);
+      setEditingId(null);
+    } catch (err) {
+      console.error("Failed to save prompt:", err);
     }
+  }, [editName, editDescription, editContent, isCreating, editingId, activeIds, updateSettings, onPromptsChanged]);
 
-    setIsCreating(false);
-    setEditingId(null);
-  }, [editName, editContent, isCreating, editingId, prompts, updateSettings]);
-
-  const handleDelete = useCallback((id: string) => {
-    updateSettings({
-      system_prompts: prompts.filter((p) => p.id !== id),
-      active_prompt_ids: activeIds.filter((aid) => aid !== id),
-    });
+  const handleDelete = useCallback(async (id: string) => {
+    try {
+      await invoke("delete_prompt", { id });
+      updateSettings({
+        active_prompt_ids: activeIds.filter((aid) => aid !== id),
+      });
+      onPromptsChanged();
+    } catch (err) {
+      console.error("Failed to delete prompt:", err);
+    }
     if (editingId === id) {
       setEditingId(null);
     }
-  }, [prompts, activeIds, editingId, updateSettings]);
+  }, [activeIds, editingId, updateSettings, onPromptsChanged]);
 
   const handleToggleActive = useCallback((id: string) => {
     const isCurrentlyActive = activeIds.includes(id);
@@ -189,6 +196,13 @@ function SystemPromptPage({ tabId, onRequestClose, isActive }: SystemPromptPageP
               placeholder="Prompt name..."
               value={editName}
               onChange={(e) => setEditName(e.target.value)}
+            />
+            <input
+              className="sp-input"
+              type="text"
+              placeholder="Description (optional)..."
+              value={editDescription}
+              onChange={(e) => setEditDescription(e.target.value)}
             />
             <textarea
               ref={contentRef}

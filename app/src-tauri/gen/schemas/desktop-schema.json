@@ -393,10 +393,58 @@
           "markdownDescription": "Allows querying active session count"
         },
         {
+          "description": "Allows forking an agent session",
+          "type": "string",
+          "const": "allow-agent-fork",
+          "markdownDescription": "Allows forking an agent session"
+        },
+        {
+          "description": "Allows killing an agent session",
+          "type": "string",
+          "const": "allow-agent-kill",
+          "markdownDescription": "Allows killing an agent session"
+        },
+        {
+          "description": "Allows responding to an agent permission prompt",
+          "type": "string",
+          "const": "allow-agent-permission",
+          "markdownDescription": "Allows responding to an agent permission prompt"
+        },
+        {
+          "description": "Allows resuming a past agent session",
+          "type": "string",
+          "const": "allow-agent-resume",
+          "markdownDescription": "Allows resuming a past agent session"
+        },
+        {
+          "description": "Allows sending a message to an agent session",
+          "type": "string",
+          "const": "allow-agent-send",
+          "markdownDescription": "Allows sending a message to an agent session"
+        },
+        {
+          "description": "Allows changing the model of an agent session",
+          "type": "string",
+          "const": "allow-agent-set-model",
+          "markdownDescription": "Allows changing the model of an agent session"
+        },
+        {
           "description": "Allows creating a new project directory",
           "type": "string",
           "const": "allow-create-project",
           "markdownDescription": "Allows creating a new project directory"
+        },
+        {
+          "description": "Allows deleting a system prompt file",
+          "type": "string",
+          "const": "allow-delete-prompt",
+          "markdownDescription": "Allows deleting a system prompt file"
+        },
+        {
+          "description": "Allows retrieving messages from a past agent session",
+          "type": "string",
+          "const": "allow-get-agent-messages",
+          "markdownDescription": "Allows retrieving messages from a past agent session"
         },
         {
           "description": "Allows getting token usage statistics",
@@ -417,10 +465,22 @@
           "markdownDescription": "Allows killing a PTY session"
         },
         {
+          "description": "Allows listing past agent sessions",
+          "type": "string",
+          "const": "allow-list-agent-sessions",
+          "markdownDescription": "Allows listing past agent sessions"
+        },
+        {
           "description": "Allows listing directory contents for folder tree browser",
           "type": "string",
           "const": "allow-list-directory",
           "markdownDescription": "Allows listing directory contents for folder tree browser"
+        },
+        {
+          "description": "Allows loading builtin system prompts",
+          "type": "string",
+          "const": "allow-load-builtin-prompts",
+          "markdownDescription": "Allows loading builtin system prompts"
         },
         {
           "description": "Allows loading session state",
@@ -459,6 +519,12 @@
           "markdownDescription": "Allows saving clipboard image as temp PNG"
         },
         {
+          "description": "Allows saving a system prompt to file",
+          "type": "string",
+          "const": "allow-save-prompt",
+          "markdownDescription": "Allows saving a system prompt to file"
+        },
+        {
           "description": "Allows saving session state",
           "type": "string",
           "const": "allow-save-session",
@@ -477,10 +543,34 @@
           "markdownDescription": "Allows scanning project directories"
         },
         {
+          "description": "Allows setting window corner rounding preference",
+          "type": "string",
+          "const": "allow-set-window-corner-preference",
+          "markdownDescription": "Allows setting window corner rounding preference"
+        },
+        {
+          "description": "Allows checking sidecar availability status",
+          "type": "string",
+          "const": "allow-sidecar-available",
+          "markdownDescription": "Allows checking sidecar availability status"
+        },
+        {
+          "description": "Allows spawning an agent SDK session",
+          "type": "string",
+          "const": "allow-spawn-agent",
+          "markdownDescription": "Allows spawning an agent SDK session"
+        },
+        {
           "description": "Allows spawning a CLI tool session",
           "type": "string",
           "const": "allow-spawn-tool",
           "markdownDescription": "Allows spawning a CLI tool session"
+        },
+        {
+          "description": "Allows updating an existing system prompt file",
+          "type": "string",
+          "const": "allow-update-prompt",
+          "markdownDescription": "Allows updating an existing system prompt file"
         },
         {
           "description": "Allows writing to a PTY session",

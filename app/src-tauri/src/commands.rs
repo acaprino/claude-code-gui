@@ -503,6 +503,27 @@ pub async fn load_builtin_prompts() -> Result<Vec<crate::prompts::BuiltinPrompt>
         .map_err(|e| format!("Task failed: {e}"))
 }
 
+#[tauri::command]
+pub async fn save_prompt(name: String, description: String, content: String) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || crate::prompts::save_prompt(&name, &description, &content))
+        .await
+        .map_err(|e| format!("Task failed: {e}"))?
+}
+
+#[tauri::command]
+pub async fn update_prompt(id: String, name: String, description: String, content: String) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || crate::prompts::update_prompt(&id, &name, &description, &content))
+        .await
+        .map_err(|e| format!("Task failed: {e}"))?
+}
+
+#[tauri::command]
+pub async fn delete_prompt(id: String) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || crate::prompts::delete_prompt(&id))
+        .await
+        .map_err(|e| format!("Task failed: {e}"))?
+}
+
 // ── Agent SDK commands ──────────────────────────────────────────────
 
 #[derive(serde::Serialize)]

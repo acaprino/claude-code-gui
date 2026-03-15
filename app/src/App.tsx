@@ -1,4 +1,5 @@
 import { useEffect, useCallback, useMemo, useRef, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { SystemPrompt, THEMES } from "./types";
 import { getSidecarStatus } from "./hooks/useAgentSession";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -55,14 +56,21 @@ function AppContent() {
   const themeIdx = settings?.theme_idx ?? 0;
   const fontFamily = settings?.font_family ?? "Cascadia Code";
   const fontSize = settings?.font_size ?? 14;
+
+  // Load prompts from .md files (source of truth) on mount and when settings change
+  const [allPrompts, setAllPrompts] = useState<SystemPrompt[]>([]);
+  const reloadPrompts = useCallback(() => {
+    invoke<SystemPrompt[]>("load_builtin_prompts").then(setAllPrompts).catch(console.error);
+  }, []);
+  useEffect(() => { reloadPrompts(); }, [reloadPrompts]);
+
   const systemPrompt = useMemo(() => {
-    const prompts: SystemPrompt[] = settings?.system_prompts ?? [];
     const activeIds: string[] = settings?.active_prompt_ids ?? [];
-    return prompts
+    return allPrompts
       .filter((p) => activeIds.includes(p.id))
       .map((p) => p.content)
       .join("\n\n");
-  }, [settings?.system_prompts, settings?.active_prompt_ids]);
+  }, [allPrompts, settings?.active_prompt_ids]);
 
   const addTabAndResetFilter = useCallback(() => {
     setFilter("");
@@ -254,6 +262,8 @@ function AppContent() {
                     tabId={tab.id}
                     onRequestClose={closeTab}
                     isActive={isActive}
+                    prompts={allPrompts}
+                    onPromptsChanged={reloadPrompts}
                   />
                 </ErrorBoundary>
               ) : tab.type === "sessions" ? (

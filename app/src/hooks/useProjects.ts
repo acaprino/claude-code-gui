@@ -30,33 +30,9 @@ export function useProjects() {
         invoke<Settings>("load_settings"),
         invoke<UsageData>("load_usage"),
       ]);
-      // Seed example prompts on first run (empty list, never seeded)
-      if (s.system_prompts.length === 0 && !s.prompts_seeded) {
-        const builtins = await invoke<{ id: string; name: string; description: string; content: string }[]>("load_builtin_prompts");
-        s.system_prompts = builtins.map((bp) => ({
-          id: bp.id,
-          name: bp.name,
-          description: bp.description,
-          content: bp.content,
-        }));
-        if (!(s.active_prompt_ids ?? []).includes("builtin-claudione")) {
-          s.active_prompt_ids = [...(s.active_prompt_ids ?? []), "builtin-claudione"];
-        }
-        s.prompts_seeded = true;
-        (s as any).claudione_migrated = true;
-        invoke("save_settings", { settings: s }).catch(console.error);
-      }
-      // One-time migration: activate claudione for existing users who already
-      // seeded but haven't had this migration yet. Runs once, then sets a flag
-      // so users who later deactivate it are respected.
-      if (
-        s.prompts_seeded &&
-        !(s as any).claudione_migrated &&
-        s.system_prompts.some((p) => p.id === "builtin-claudione") &&
-        !(s.active_prompt_ids ?? []).includes("builtin-claudione")
-      ) {
-        s.active_prompt_ids = [...(s.active_prompt_ids ?? []), "builtin-claudione"];
-        (s as any).claudione_migrated = true;
+      // Auto-activate claudione prompt if active_prompt_ids is empty (first run)
+      if ((s.active_prompt_ids ?? []).length === 0) {
+        s.active_prompt_ids = ["claudione"];
         invoke("save_settings", { settings: s }).catch(console.error);
       }
       setSettings(s);

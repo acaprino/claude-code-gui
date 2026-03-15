@@ -42,9 +42,7 @@ export interface Settings {
   font_size: number;
   skip_perms: boolean;
   autocompact: boolean;
-  system_prompts: SystemPrompt[];
   active_prompt_ids: string[];
-  prompts_seeded?: boolean;
   security_gate: boolean;
   project_dirs: string[];
   single_project_dirs: string[];

@@ -91,6 +91,21 @@ description = "Allows loading builtin system prompts"
 commands.allow = ["load_builtin_prompts"]
 
 [[permission]]
+identifier = "allow-save-prompt"
+description = "Allows saving a system prompt to file"
+commands.allow = ["save_prompt"]
+
+[[permission]]
+identifier = "allow-update-prompt"
+description = "Allows updating an existing system prompt file"
+commands.allow = ["update_prompt"]
+
+[[permission]]
+identifier = "allow-delete-prompt"
+description = "Allows deleting a system prompt file"
+commands.allow = ["delete_prompt"]
+
+[[permission]]
 identifier = "allow-set-window-corner-preference"
 description = "Allows setting window corner rounding preference"
 commands.allow = ["set_window_corner_preference"]
