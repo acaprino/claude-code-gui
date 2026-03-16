@@ -124,29 +124,36 @@
 
 .minimap-block:hover { opacity: 1 !important; }
 
-/* ── Sublime-style Minimap ────────────────────────────────────── */
+/* ── Sublime-style Minimap (always-visible strip) ────────────── */
 .minimap-panel-sublime {
   position: relative;
+  width: 80px;
+  min-width: 80px;
   cursor: pointer;
-  font-family: var(--font-mono);
-  font-size: 2px;
-  line-height: 1.2;
+  font-size: 1.5px;
+  line-height: 1.1;
   overflow: hidden;
-  padding: 2px;
+  padding: 2px 0;
   user-select: none;
+  background: var(--crust);
+  border-left: 1px solid color-mix(in srgb, var(--overlay0) 15%, transparent);
 }
 
 .minimap-viewport {
   position: absolute;
   left: 0;
   right: 0;
-  background: color-mix(in srgb, var(--accent) 15%, transparent);
-  border-left: 2px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border-left: 2px solid color-mix(in srgb, var(--accent) 50%, transparent);
   pointer-events: auto;
   cursor: grab;
   z-index: 1;
   min-height: 12px;
   transition: top 0.05s linear;
+}
+
+.minimap-viewport:hover {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
 }
 
 .minimap-viewport:active { cursor: grabbing; }
@@ -155,10 +162,12 @@
   white-space: pre-wrap;
   word-break: break-all;
   overflow: hidden;
-  max-height: 40px;
-  opacity: 0.7;
-  padding: 0 1px;
+  max-height: 30px;
+  opacity: 0.6;
+  padding: 0 2px;
 }
+
+.minimap-text-block:hover { opacity: 1; }
 
 /* ── Thinking History Panel ────────────────────────────────────── */
 .thinking-history-panel {

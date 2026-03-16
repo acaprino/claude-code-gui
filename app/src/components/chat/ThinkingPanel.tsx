@@ -27,7 +27,7 @@ export default memo(function ThinkingPanel({ messages }: Props) {
 });
 
 const ThinkingEntry = memo(function ThinkingEntry({ msg }: { msg: ChatMessage }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
   if (msg.role !== "thinking") return null;
 
   const lineCount = msg.text.split("\n").length;

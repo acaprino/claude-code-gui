@@ -1,4 +1,5 @@
-import { memo, useState, useEffect, useRef, useMemo } from "react";
+import { memo, useState, useEffect, useLayoutEffect, useRef, useMemo } from "react";
+import { createPortal } from "react-dom";
 import type { AgentInfoSDK } from "../../types";
 
 export interface Mention {
@@ -16,6 +17,8 @@ interface Props {
 export default memo(function MentionMenu({ filter, agents = [], onSelect, onDismiss }: Props) {
   const [selectedIdx, setSelectedIdx] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const [style, setStyle] = useState<React.CSSProperties>({ visibility: "hidden", position: "fixed" });
 
   const filtered = useMemo(() => {
     const options: Mention[] = agents.map((a) => ({
@@ -29,6 +32,25 @@ export default memo(function MentionMenu({ filter, agents = [], onSelect, onDism
   }, [agents, filter]);
 
   useEffect(() => { setSelectedIdx(0); }, [filter]);
+
+  useLayoutEffect(() => {
+    const wrapper = wrapperRef.current;
+    if (!wrapper) return;
+    const update = () => {
+      const rect = wrapper.getBoundingClientRect();
+      const spaceAbove = rect.top - 8;
+      const spaceBelow = window.innerHeight - rect.bottom - 8;
+      const maxH = Math.max(120, Math.min(Math.max(spaceAbove, spaceBelow), 400));
+      if (spaceAbove >= spaceBelow) {
+        setStyle({ position: "fixed", bottom: window.innerHeight - rect.top + 2, left: rect.left, width: rect.width, maxHeight: maxH });
+      } else {
+        setStyle({ position: "fixed", top: rect.bottom + 2, left: rect.left, width: rect.width, maxHeight: maxH });
+      }
+    };
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, [filtered.length]);
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -57,8 +79,8 @@ export default memo(function MentionMenu({ filter, agents = [], onSelect, onDism
 
   if (filtered.length === 0) return null;
 
-  return (
-    <div className="command-menu" ref={listRef}>
+  const menu = (
+    <div className="command-menu" ref={listRef} style={style}>
       {filtered.map((m, i) => (
         <div
           key={m.name}
@@ -71,5 +93,12 @@ export default memo(function MentionMenu({ filter, agents = [], onSelect, onDism
         </div>
       ))}
     </div>
+  );
+
+  return (
+    <>
+      <div ref={wrapperRef} style={{ height: 0, overflow: "hidden" }} />
+      {createPortal(menu, document.body)}
+    </>
   );
 });

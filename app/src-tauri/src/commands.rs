@@ -544,14 +544,28 @@ pub async fn refresh_commands(
 /// Handles UTF-8 and falls back to lossy conversion for other encodings.
 const MAX_EXTERNAL_FILE_SIZE: u64 = 1_048_576; // 1 MB
 
+const BLOCKED_DIRS: &[&str] = &[".ssh", ".gnupg", ".claude", ".aws", ".config"];
+
 #[tauri::command]
 pub fn read_external_file(path: String) -> Result<String, String> {
     log_info!("read_external_file: {path}");
-    let p = std::path::Path::new(&path);
+    let p = std::path::Path::new(&path)
+        .canonicalize()
+        .map_err(|e| format!("Cannot resolve path: {e}"))?;
+    // Block sensitive directories
+    for component in p.components() {
+        if let std::path::Component::Normal(s) = component {
+            let s = s.to_string_lossy();
+            if BLOCKED_DIRS.iter().any(|b| s.eq_ignore_ascii_case(b)) {
+                log_warn!("read_external_file: blocked sensitive path: {path}");
+                return Err("Access to sensitive directories is blocked".to_string());
+            }
+        }
+    }
     if !p.is_file() {
         return Err("File does not exist".to_string());
     }
-    let meta = std::fs::metadata(p).map_err(|e| format!("Cannot read file: {e}"))?;
+    let meta = std::fs::metadata(&p).map_err(|e| format!("Cannot read file: {e}"))?;
     if meta.len() > MAX_EXTERNAL_FILE_SIZE {
         return Err(format!("File too large ({} bytes, max {})", meta.len(), MAX_EXTERNAL_FILE_SIZE));
     }

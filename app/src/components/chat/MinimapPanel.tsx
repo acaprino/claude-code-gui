@@ -94,9 +94,7 @@ export default memo(function MinimapPanel({ messages, scrollContainerRef }: Prop
     document.addEventListener("mouseup", onUp);
   }, [scrollContainerRef]);
 
-  if (messages.length === 0) {
-    return <div className="sidebar-empty">No messages yet</div>;
-  }
+  if (messages.length === 0) return null;
 
   const filtered = messages.filter(m => m.role !== "status");
 

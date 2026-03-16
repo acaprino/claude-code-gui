@@ -195,6 +195,8 @@
 /* ── Command / Mention Menu ────────────────────────────────────── */
 .command-menu-wrapper {
   position: relative;
+  /* Allow menu to overflow the scroll container */
+  z-index: var(--z-modal);
 }
 
 .command-menu {

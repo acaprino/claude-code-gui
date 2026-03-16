@@ -14,7 +14,63 @@ import PermissionCard from "./chat/PermissionCard";
 import ThinkingBlock from "./chat/ThinkingBlock";
 import ResultBar from "./chat/ResultBar";
 import RightSidebar from "./chat/RightSidebar";
+import MinimapPanel from "./chat/MinimapPanel";
 import "./ChatView.css";
+
+/** Patterns for parsing user message attachments */
+const FILE_TAG_RE = /<file\s+path="([^"]*)"[^>]*>\n?([\s\S]{0,1048576}?)\n?<\/file>/;
+const IMAGE_TAG_RE = /\[Attached image: ([^\]]+)\]/;
+const FALLBACK_TAG_RE = /\[Attached: ([^\]]+)\]/;
+const ATTACHMENT_RE = new RegExp(
+  `(?:${FILE_TAG_RE.source})|(?:${IMAGE_TAG_RE.source})|(?:${FALLBACK_TAG_RE.source})`,
+  "g",
+);
+
+const UserMessage = memo(function UserMessage({ text }: { text: string }) {
+  const parts: React.ReactNode[] = [];
+  let lastIdx = 0;
+  let match: RegExpExecArray | null;
+  const re = new RegExp(ATTACHMENT_RE.source, ATTACHMENT_RE.flags);
+  let key = 0;
+  while ((match = re.exec(text)) !== null) {
+    if (match.index > lastIdx) {
+      const before = text.slice(lastIdx, match.index).trim();
+      if (before) parts.push(<span key={key++}>{before}</span>);
+    }
+    if (match[1] !== undefined) {
+      // <file path="..." name="...">content</file>
+      const filePath = match[1];
+      const content = match[2];
+      const filename = filePath.replace(/\\/g, "/").split("/").pop() || filePath;
+      parts.push(
+        <div key={key++} className="user-file-attachment">
+          <div className="user-file-header">
+            <span className="user-file-icon">+</span>
+            <span className="user-file-name" title={filename}>{filename}</span>
+          </div>
+          <pre className="user-file-content">{content}</pre>
+        </div>
+      );
+    } else {
+      // [Attached image: path] or [Attached: path]
+      const filePath = match[3] || match[4];
+      const filename = filePath.replace(/\\/g, "/").split("/").pop() || filePath;
+      const isImage = match[3] !== undefined;
+      parts.push(
+        <div key={key++} className="user-file-attachment">
+          <div className="user-file-header">
+            <span className="user-file-icon">{isImage ? "\u{1F5BC}" : "+"}</span>
+            <span className="user-file-name" title={filename}>{filename}</span>
+          </div>
+        </div>
+      );
+    }
+    lastIdx = match.index + match[0].length;
+  }
+  const after = text.slice(lastIdx).trim();
+  if (after) parts.push(<span key={key++}>{after}</span>);
+  return <>{parts}</>;
+});
 
 interface ChatViewProps {
   tabId: string;
@@ -342,7 +398,9 @@ export default memo(function ChatView({
           try {
             const content = await invoke<string>("read_external_file", { path: a.path });
             const filename = a.path.replace(/\\/g, "/").split("/").pop() || a.path;
-            parts.push(`<file path="${a.path}" name="${filename}">\n${content}\n</file>`);
+            const safePath = a.path.replace(/"/g, "&quot;");
+            const safeName = filename.replace(/"/g, "&quot;");
+            parts.push(`<file path="${safePath}" name="${safeName}">\n${content}\n</file>`);
           } catch {
             parts.push(`[Attached: ${a.path}]`);
           }
@@ -393,23 +451,27 @@ export default memo(function ChatView({
 
   // ── Keyboard shortcuts ─────────────────────────────────────────
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    // Ctrl+C: interrupt agent
     if (e.ctrlKey && e.key === "c") {
       killAgent(tabId).catch(() => {});
-      return;
-    }
-    // Ctrl+B: toggle sidebar
-    if (e.ctrlKey && e.key === "b") {
+    } else if (e.ctrlKey && e.key === "b") {
       e.preventDefault();
       setSidebarOpen(prev => !prev);
-      return;
     }
-    // Permission keyboard shortcuts: Y=allow, N=deny, A=allow+session
-    // Only active when a permission prompt is pending (textarea is disabled)
-    if (e.ctrlKey || e.altKey || e.metaKey) return;
-    const key = e.key.toLowerCase();
-    if (key === "y" || key === "n" || key === "a") {
-      // Find the latest unresolved permission
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabId]);
+
+  // Permission keyboard shortcuts: Y=allow, N=deny, A=allow+session
+  // Window-level listener so it works even when textarea is disabled/unfocused
+  useEffect(() => {
+    if (!isActive) return;
+    const handlePermissionKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
+      const target = e.target as HTMLElement;
+      if (target.tagName === "TEXTAREA" || target.tagName === "INPUT" || target.isContentEditable) return;
+      const key = e.key.toLowerCase();
+      if (key !== "y" && key !== "n" && key !== "a") return;
+      const allow = key !== "n";
+      // Find and respond to latest unresolved permission (side effect outside updater)
       setMessages(prev => {
         let idx = -1;
         for (let i = prev.length - 1; i >= 0; i--) {
@@ -419,19 +481,20 @@ export default memo(function ChatView({
         if (idx < 0) return prev;
         const msg = prev[idx];
         if (msg.role !== "permission") return prev;
-        // Guard against double-respond
         if (respondedIdsRef.current.has(msg.id)) return prev;
         respondedIdsRef.current.add(msg.id);
-        const allow = key !== "n";
         const sugg = key === "a" ? msg.suggestions : undefined;
-        respondPermission(tabId, allow, sugg).catch(() => {});
+        // Schedule IPC outside React's updater cycle
+        queueMicrotask(() => respondPermission(tabId, allow, sugg).catch(() => {}));
         const next = [...prev];
         next[idx] = { ...msg, resolved: true, allowed: allow };
         return next;
       });
-    }
+    };
+    window.addEventListener("keydown", handlePermissionKey);
+    return () => window.removeEventListener("keydown", handlePermissionKey);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tabId]);
+  }, [isActive, tabId]);
 
   // ── Slash commands ─────────────────────────────────────────────
   const handleCommand = useCallback((command: Command) => {
@@ -530,7 +593,7 @@ export default memo(function ChatView({
         {messages.map((msg) => {
           switch (msg.role) {
             case "user":
-              return <div key={msg.id} id={`msg-${msg.id}`} className="chat-msg chat-msg--user">{msg.text}</div>;
+              return <div key={msg.id} id={`msg-${msg.id}`} className="chat-msg chat-msg--user"><UserMessage text={msg.text} /></div>;
             case "assistant":
               return (
                 <div key={msg.id} id={`msg-${msg.id}`} className="chat-msg chat-msg--assistant">
@@ -553,7 +616,7 @@ export default memo(function ChatView({
               return null;
           }
         })}
-        {/* Terminal mode: input inside scrollable area (both awaiting and processing) */}
+        {/* Terminal mode: input inside scrollable area */}
         {inputStyle === "terminal" && inputState === "awaiting_input" && (
           <ChatInput
             onSubmit={handleSubmit}
@@ -624,6 +687,7 @@ export default memo(function ChatView({
         </div>
       )}
       </div>{/* end chat-main-col */}
+      <MinimapPanel messages={deferredMessages} scrollContainerRef={chatContainerRef} />
       {sidebarOpen && (
         <RightSidebar messages={deferredMessages} onScrollToMessage={handleScrollToMessage} scrollContainerRef={chatContainerRef} />
       )}

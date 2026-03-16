@@ -77,6 +77,43 @@
   font-weight: 700;
 }
 
+/* ── User file attachment ───────────────────────────────────────── */
+.user-file-attachment {
+  margin: 2px 0;
+}
+
+.user-file-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--text-dim);
+}
+
+.user-file-icon {
+  color: var(--accent);
+  font-weight: 700;
+  font-size: var(--text-xs);
+}
+
+.user-file-name {
+  color: var(--accent);
+  font-size: var(--text-sm);
+}
+
+.user-file-content {
+  margin: 2px 0 0 0;
+  padding: var(--space-1) var(--space-2);
+  background: color-mix(in srgb, var(--crust) 60%, transparent);
+  border-left: 2px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  font-size: var(--text-sm);
+  color: var(--text-dim);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
 .chat-msg--assistant {
   max-width: 100%;
   padding: 1px 0;

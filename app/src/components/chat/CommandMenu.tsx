@@ -1,4 +1,5 @@
-import { memo, useState, useEffect, useRef, useMemo } from "react";
+import { memo, useState, useEffect, useLayoutEffect, useRef, useMemo } from "react";
+import { createPortal } from "react-dom";
 import type { SlashCommand } from "../../types";
 
 export interface Command {
@@ -17,7 +18,6 @@ const LOCAL_COMMANDS: Command[] = [
   { name: "/help", description: "Show help", source: "local" },
 ];
 
-/** Names of local commands, for collision filtering. */
 const LOCAL_NAMES = new Set(LOCAL_COMMANDS.map((c) => c.name));
 
 interface Props {
@@ -30,11 +30,11 @@ interface Props {
 export default memo(function CommandMenu({ filter, sdkCommands = [], onSelect, onDismiss }: Props) {
   const [selectedIdx, setSelectedIdx] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
-  const [maxH, setMaxH] = useState(240);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const [style, setStyle] = useState<React.CSSProperties>({ visibility: "hidden", position: "fixed" });
 
   const lowerFilter = filter.toLowerCase();
 
-  // Memoize merged + filtered lists to stabilize useEffect deps
   const { filteredLocal, filteredSdk, selectableItems } = useMemo(() => {
     const sdkMapped: Command[] = sdkCommands
       .filter((c) => !LOCAL_NAMES.has("/" + c.name))
@@ -45,29 +45,35 @@ export default memo(function CommandMenu({ filter, sdkCommands = [], onSelect, o
         }
         return acc;
       }, []);
-
     const local = LOCAL_COMMANDS.filter(
       (c) => c.name.toLowerCase().includes(lowerFilter) || c.description.toLowerCase().includes(lowerFilter),
     );
     const sdk = sdkMapped.filter(
       (c) => c.name.toLowerCase().includes(lowerFilter) || c.description.toLowerCase().includes(lowerFilter),
     );
-
     return { filteredLocal: local, filteredSdk: sdk, selectableItems: [...local, ...sdk] };
   }, [sdkCommands, lowerFilter]);
 
   useEffect(() => { setSelectedIdx(0); }, [filter]);
 
-  // Clamp max-height so the menu never overflows the viewport top
-  useEffect(() => {
-    const el = listRef.current;
-    if (!el) return;
-    const parent = el.parentElement;
-    if (!parent) return;
-    const parentRect = parent.getBoundingClientRect();
-    // Available space above the wrapper, minus some padding
-    const available = parentRect.top - 8;
-    setMaxH(Math.max(120, Math.min(available, 400)));
+  // Position portal: measure the invisible wrapper placeholder, place menu above it
+  useLayoutEffect(() => {
+    const wrapper = wrapperRef.current;
+    if (!wrapper) return;
+    const update = () => {
+      const rect = wrapper.getBoundingClientRect();
+      const spaceAbove = rect.top - 8;
+      const spaceBelow = window.innerHeight - rect.bottom - 8;
+      const maxH = Math.max(120, Math.min(Math.max(spaceAbove, spaceBelow), 400));
+      if (spaceAbove >= spaceBelow) {
+        setStyle({ position: "fixed", bottom: window.innerHeight - rect.top + 2, left: rect.left, width: rect.width, maxHeight: maxH });
+      } else {
+        setStyle({ position: "fixed", top: rect.bottom + 2, left: rect.left, width: rect.width, maxHeight: maxH });
+      }
+    };
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
   }, [selectableItems.length]);
 
   useEffect(() => {
@@ -97,11 +103,10 @@ export default memo(function CommandMenu({ filter, sdkCommands = [], onSelect, o
 
   if (selectableItems.length === 0) return null;
 
-  // SDK items start at this offset in selectableItems
   const sdkOffset = filteredLocal.length;
 
-  return (
-    <div className="command-menu" ref={listRef} style={{ maxHeight: maxH }} role="listbox" aria-label="Commands">
+  const menu = (
+    <div className="command-menu" ref={listRef} style={style} role="listbox" aria-label="Commands">
       {filteredLocal.length > 0 && (
         <>
           <div className="command-section-header">
@@ -155,5 +160,13 @@ export default memo(function CommandMenu({ filter, sdkCommands = [], onSelect, o
         </>
       )}
     </div>
+  );
+
+  // Render an invisible placeholder in-flow + the actual menu in a body portal
+  return (
+    <>
+      <div ref={wrapperRef} style={{ height: 0, overflow: "hidden" }} />
+      {createPortal(menu, document.body)}
+    </>
   );
 });
