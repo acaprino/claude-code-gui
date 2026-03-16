@@ -1,13 +1,13 @@
-/* ── Input Bar Container ──────────────────────────────────────── */
+/* ── Input Bar Container: shell prompt style ─────────────────────── */
 .chat-input-container {
-  border-top: 1px solid color-mix(in srgb, var(--overlay0) 40%, transparent);
-  padding: var(--space-2) var(--space-3);
+  border-top: 1px solid color-mix(in srgb, var(--overlay0) 25%, transparent);
+  padding: var(--space-1) var(--space-3);
 }
 
 /* Terminal mode: no border, blends with message flow */
 .chat-input-container.terminal-mode {
   border-top: none;
-  padding-top: var(--space-3);
+  padding-top: var(--space-1);
 }
 
 /* ── Attachment Chips Row ─────────────────────────────────────── */
@@ -15,27 +15,27 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-1);
-  padding-bottom: var(--space-2);
+  padding-bottom: var(--space-1);
 }
 
 .attachment-chip {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  background: color-mix(in srgb, var(--surface) 80%, transparent);
-  border: 1px solid var(--overlay0);
-  border-radius: var(--radius-sm);
-  padding: 2px var(--space-2);
+  background: none;
+  border: 1px dashed color-mix(in srgb, var(--overlay0) 40%, transparent);
+  border-radius: 0;
+  padding: 1px var(--space-2);
   font-size: var(--text-xs);
   color: var(--text-dim);
   max-width: 200px;
 }
 
 .attachment-thumb {
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   object-fit: cover;
-  border-radius: 2px;
+  border-radius: 0;
 }
 
 .attachment-icon { font-size: var(--text-sm); }
@@ -54,78 +54,81 @@
   padding: 0 2px;
   font-family: inherit;
   font-size: var(--text-xs);
-  opacity: 0.6;
+  opacity: 0.5;
   line-height: 1;
 }
 
 .attachment-remove:hover { opacity: 1; color: var(--red); }
 
-/* ── Main Input Row ───────────────────────────────────────────── */
+/* ── Main Input Row: shell prompt ────────────────────────────────── */
 .chat-input-row {
   display: flex;
   align-items: flex-end;
-  gap: var(--space-2);
+  gap: var(--space-1);
 }
 
 .chat-input-attach-btn {
   background: none;
-  border: 1px solid var(--overlay0);
-  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--overlay0) 40%, transparent);
+  border-radius: 0;
   color: var(--text-dim);
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  font-size: var(--text-base);
+  font-size: var(--text-sm);
   flex-shrink: 0;
   transition: border-color 0.1s, color 0.1s;
+  opacity: 0.5;
 }
 
 .chat-input-attach-btn:hover {
   border-color: var(--accent);
   color: var(--accent);
+  opacity: 1;
 }
 
 .chat-input-textarea {
   flex: 1;
-  background: color-mix(in srgb, var(--surface) 80%, transparent);
+  background: none;
   color: var(--text);
-  border: 1px solid var(--overlay0);
-  border-radius: var(--radius-md);
-  padding: var(--space-2) var(--space-3);
+  border: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--overlay0) 30%, transparent);
+  border-radius: 0;
+  padding: var(--space-1) var(--space-2);
   font-family: inherit;
   font-size: inherit;
   resize: none;
   outline: none;
   box-sizing: border-box;
-  max-height: calc(var(--text-base) * 1.5 * 6 + var(--space-2) * 2);
+  max-height: calc(var(--text-base) * 1.5 * 6 + var(--space-1) * 2);
   overflow-y: auto;
   line-height: 1.5;
 }
 
 .chat-input-textarea:focus {
-  border-color: var(--accent);
+  border-bottom-color: var(--accent);
 }
 
-/* Processing state pulse */
+/* Processing state: subtle accent pulse on bottom border */
 .chat-input-container.processing .chat-input-textarea {
   animation: input-pulse 2s ease-in-out infinite;
 }
 
 @keyframes input-pulse {
-  0%, 100% { border-color: var(--overlay0); }
-  50% { border-color: color-mix(in srgb, var(--accent) 30%, transparent); }
+  0%, 100% { border-bottom-color: color-mix(in srgb, var(--overlay0) 30%, transparent); }
+  50% { border-bottom-color: color-mix(in srgb, var(--accent) 30%, transparent); }
 }
 
 .chat-input-send-btn {
-  background: var(--accent);
-  border: none;
-  border-radius: var(--radius-sm);
-  color: var(--crust);
-  width: 32px;
-  height: 32px;
+  background: none;
+  border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent);
+  border-radius: 0;
+  color: var(--accent);
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -138,26 +141,26 @@
 
 .chat-input-send-btn:hover { opacity: 0.85; }
 .chat-input-send-btn:active { transform: translateY(1px); }
-.chat-input-send-btn:disabled { opacity: 0.3; cursor: default; }
+.chat-input-send-btn:disabled { opacity: 0.2; cursor: default; }
 
 /* ── Drag & Drop Overlay ──────────────────────────────────────── */
 .chat-drop-overlay {
   position: absolute;
   inset: 0;
-  background: color-mix(in srgb, var(--bg) 85%, transparent);
+  background: color-mix(in srgb, var(--bg) 90%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: var(--z-modal);
-  border: 2px dashed var(--accent);
-  border-radius: var(--radius-md);
+  border: 1px dashed var(--accent);
+  border-radius: 0;
   pointer-events: none;
 }
 
 .chat-drop-overlay-text {
   color: var(--accent);
-  font-size: var(--text-lg);
-  font-weight: 600;
+  font-size: var(--text-base);
+  opacity: 0.7;
 }
 
 /* ── Floating Mini-Input (terminal mode, scrolled up) ─────────── */
@@ -165,16 +168,16 @@
   position: sticky;
   bottom: 0;
   background: var(--bg);
-  border-top: 1px solid color-mix(in srgb, var(--overlay0) 40%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--overlay0) 25%, transparent);
   padding: var(--space-1) var(--space-3);
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  animation: mini-in 0.2s ease-out;
+  animation: mini-in 0.15s ease-out;
 }
 
 @keyframes mini-in {
-  from { opacity: 0; transform: translateY(8px); }
+  from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
@@ -187,10 +190,10 @@
   color: var(--text-dim);
   font-size: var(--text-xs);
   cursor: pointer;
-  opacity: 0.6;
+  opacity: 0.4;
 }
 
-.chat-mini-input-hint:hover { opacity: 1; }
+.chat-mini-input-hint:hover { opacity: 0.8; }
 
 /* ── Command / Mention Menu ────────────────────────────────────── */
 .command-menu-wrapper {
@@ -202,15 +205,14 @@
   bottom: 100%;
   left: 0;
   right: 0;
-  background: var(--surface);
+  background: var(--crust);
   border: 1px solid var(--overlay0);
-  border-radius: var(--radius-sm);
-  margin-bottom: var(--space-1);
+  border-radius: 0;
+  margin-bottom: 2px;
   max-height: 240px;
   overflow-y: auto;
   z-index: var(--z-modal);
-  box-shadow: 0 -4px 12px color-mix(in srgb, var(--crust) 40%, transparent);
-  animation: menu-in 0.1s ease-out;
+  animation: menu-in 0.08s ease-out;
 }
 
 @keyframes menu-in {
@@ -222,7 +224,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-1) var(--space-2);
+  padding: 2px var(--space-2);
   cursor: pointer;
   font-size: var(--text-sm);
   transition: background 0.05s;
@@ -230,7 +232,7 @@
 
 .command-item:hover,
 .command-item.selected {
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
 .command-name {
@@ -242,4 +244,5 @@
 .command-desc {
   color: var(--text-dim);
   font-size: var(--text-xs);
+  opacity: 0.6;
 }
