@@ -47,6 +47,9 @@ export default memo(function ChatView({
   const exitedRef = useRef(false);
   const agentStartedRef = useRef(false);
   const tabIdRef = useRef(tabId);
+  // StrictMode kill-cancellation: cleanup sets true, re-mount sets false.
+  // Deferred kill only fires if still true (real unmount, not StrictMode).
+  const pendingKillRef = useRef(false);
   const idCounterRef = useRef(0);
   const nextId = () => `msg-${tabId}-${++idCounterRef.current}`;
 
@@ -84,7 +87,7 @@ export default memo(function ChatView({
 
   // ── Agent lifecycle ─────────────────────────────────────────────
   useEffect(() => {
-    console.log("[ChatView] useEffect running, tabId=", tabId);
+    pendingKillRef.current = false; // Cancel any deferred kill from StrictMode cleanup
     let cancelled = false;
 
     const modelId = MODELS[modelIdx]?.id || "";
@@ -96,7 +99,6 @@ export default memo(function ChatView({
 
     const handleAgentEvent = (event: AgentEvent) => {
       if (cancelled) return;
-      console.debug(`[ChatView] event: ${event.type}`, event);
 
       if (event.type === "assistant") {
         if (event.streaming) {
@@ -221,23 +223,28 @@ export default memo(function ChatView({
         ? forkAgent(tabId, forkSessionId, projectPath, modelId, effortId, handleAgentEvent)
         : spawnAgent(tabId, projectPath, modelId, effortId, stripNonBmp(systemPrompt), skipPerms, handleAgentEvent);
 
-    console.debug(`[ChatView] launching agent for tab=${tabId} model=${modelId}`);
     launchPromise
       .then(() => {
         if (cancelled) { killAgent(tabId).catch(() => {}); return; }
-        console.debug(`[ChatView] agent started for tab=${tabId}`);
         agentStartedRef.current = true;
         onSessionCreatedRef.current(tabIdRef.current, tabId);
       })
       .catch((err) => {
         if (cancelled) return;
-        console.error(`[ChatView] agent spawn failed:`, err);
         onErrorRef.current(tabIdRef.current, String(err));
       });
 
     return () => {
       cancelled = true;
-      if (agentStartedRef.current) killAgent(tabIdRef.current).catch(() => {});
+      // Defer kill so StrictMode re-mount can cancel it.
+      // pendingKillRef persists across mounts — re-mount sets it to false.
+      pendingKillRef.current = true;
+      const tid = tabIdRef.current;
+      setTimeout(() => {
+        if (pendingKillRef.current) {
+          killAgent(tid).catch(() => {});
+        }
+      }, 50);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
