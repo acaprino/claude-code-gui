@@ -42,6 +42,8 @@ function AppContent() {
 
   const fontFamily = settings?.font_family ?? "Cascadia Code";
   const fontSize = settings?.font_size ?? 14;
+  const chatFontFamily = settings?.chat_font_family ?? "Segoe UI";
+  const chatFontSize = settings?.chat_font_size ?? 14;
   const verticalTabs = settings?.vertical_tabs ?? false;
   const inputStyle = (settings?.input_style ?? "terminal") as "chat" | "terminal";
   const sidebarWidth = settings?.sidebar_width ?? 200;
@@ -99,8 +101,10 @@ function AppContent() {
   useEffect(() => {
     const root = document.documentElement;
     root.style.setProperty("--font-mono", `'${fontFamily}', 'Consolas', monospace`);
+    root.style.setProperty("--font-chat", `'${chatFontFamily}', 'Segoe UI', system-ui, sans-serif`);
     root.style.setProperty("--text-base", `${fontSize}px`);
-  }, [fontFamily, fontSize]);
+    root.style.setProperty("--text-chat", `${chatFontSize}px`);
+  }, [fontFamily, chatFontFamily, fontSize, chatFontSize]);
 
   const tabsRef = useRef(tabs);
   tabsRef.current = tabs;
@@ -381,8 +385,6 @@ function AppContent() {
                     effortIdx={tab.effortIdx ?? 0}
                     skipPerms={tab.skipPerms ?? false}
                     systemPrompt={systemPrompt}
-                    fontFamily={fontFamily}
-                    fontSize={fontSize}
                     isActive={isActive}
                     onSessionCreated={handleSessionCreated}
                     onNewOutput={handleNewOutput}

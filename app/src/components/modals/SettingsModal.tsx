@@ -17,6 +17,17 @@ const FONT_OPTIONS = [
   "Lucida Console",
 ];
 
+const CHAT_FONT_OPTIONS = [
+  "Segoe UI",
+  "Inter",
+  "Cascadia Code",
+  "Consolas",
+  "JetBrains Mono",
+  "Fira Code",
+  "Source Code Pro",
+  "Lucida Console",
+];
+
 const SORT_OPTIONS = SORT_ORDERS.map((s) => ({ label: s, value: s }));
 const TAB_LAYOUT_OPTIONS = [
   { label: "Horizontal", value: "horizontal" },
@@ -46,6 +57,8 @@ export default memo(function SettingsModal({ settings, onClose, onUpdate }: Sett
   // Font state (local until explicit conceptual grouping, but we apply live)
   const [fontFamily, setFontFamily] = useState(settings.font_family || "Cascadia Code");
   const [fontSize, setFontSize] = useState(settings.font_size || 14);
+  const [chatFontFamily, setChatFontFamily] = useState(settings.chat_font_family || "Segoe UI");
+  const [chatFontSize, setChatFontSize] = useState(settings.chat_font_size || 14);
 
   // Directory state (needs explicit save)
   const [dirEntries, setDirEntries] = useState<DirEntry[]>([
@@ -66,8 +79,8 @@ export default memo(function SettingsModal({ settings, onClose, onUpdate }: Sett
       mountedRef.current = true;
       return;
     }
-    onUpdateRef.current({ font_family: fontFamily, font_size: fontSize });
-  }, [fontFamily, fontSize]);
+    onUpdateRef.current({ font_family: fontFamily, font_size: fontSize, chat_font_family: chatFontFamily, chat_font_size: chatFontSize });
+  }, [fontFamily, fontSize, chatFontFamily, chatFontSize]);
 
   const addDir = () => {
     const trimmed = newDirPath.trim();
@@ -138,7 +151,7 @@ export default memo(function SettingsModal({ settings, onClose, onUpdate }: Sett
 
         {/* Font */}
         <div className="settings-section">
-          <h3 className="settings-section__title">Font</h3>
+          <h3 className="settings-section__title">Terminal Font</h3>
           <div className="font-settings-row">
             <div className="modal-field">
               <label htmlFor="font-family">Family</label>
@@ -169,6 +182,45 @@ export default memo(function SettingsModal({ settings, onClose, onUpdate }: Sett
           <div className="font-preview" style={{
             fontFamily: `'${fontFamily}', 'Consolas', monospace`,
             fontSize: `${fontSize}px`,
+          }}>
+            The quick brown fox jumps over the lazy dog<br/>
+            {"0123456789 !@#$%^&*() {}[]|\\/<>"}
+          </div>
+        </div>
+
+        {/* Chat Font */}
+        <div className="settings-section">
+          <h3 className="settings-section__title">Chat Font</h3>
+          <div className="font-settings-row">
+            <div className="modal-field">
+              <label htmlFor="chat-font-family">Family</label>
+              <select
+                id="chat-font-family"
+                className="modal-input"
+                value={chatFontFamily}
+                onChange={(e) => setChatFontFamily(e.target.value)}
+              >
+                {CHAT_FONT_OPTIONS.map((f) => (
+                  <option key={f} value={f}>{f}</option>
+                ))}
+              </select>
+            </div>
+            <div className="modal-field">
+              <label htmlFor="chat-font-size">Size ({chatFontSize}px)</label>
+              <input
+                id="chat-font-size"
+                type="range"
+                min="10"
+                max="24"
+                value={chatFontSize}
+                onChange={(e) => setChatFontSize(Number(e.target.value))}
+                className="modal-input"
+              />
+            </div>
+          </div>
+          <div className="font-preview" style={{
+            fontFamily: `'${chatFontFamily}', 'Segoe UI', system-ui, sans-serif`,
+            fontSize: `${chatFontSize}px`,
           }}>
             The quick brown fox jumps over the lazy dog<br/>
             {"0123456789 !@#$%^&*() {}[]|\\/<>"}

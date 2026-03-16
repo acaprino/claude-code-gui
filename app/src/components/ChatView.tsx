@@ -20,8 +20,6 @@ interface ChatViewProps {
   effortIdx: number;
   skipPerms: boolean;
   systemPrompt: string;
-  fontFamily: string;
-  fontSize: number;
   isActive: boolean;
   onSessionCreated: (tabId: string, sessionId: string) => void;
   onNewOutput: (tabId: string) => void;
@@ -35,7 +33,7 @@ interface ChatViewProps {
 
 export default memo(function ChatView({
   tabId, projectPath, modelIdx, effortIdx, skipPerms, systemPrompt,
-  fontFamily, fontSize, isActive,
+  isActive,
   onSessionCreated, onNewOutput, onExit, onError, onTaglineChange,
   inputStyle = "terminal", resumeSessionId, forkSessionId,
 }: ChatViewProps) {
@@ -417,7 +415,7 @@ export default memo(function ChatView({
   return (
     <div
       className="chat-view"
-      style={{ fontFamily: `'Segoe UI', system-ui, -apple-system, sans-serif`, fontSize }}
+      style={{ fontFamily: `var(--font-chat)`, fontSize: `var(--text-chat)` }}
       onKeyDown={handleKeyDown}
       tabIndex={0}
       onDragEnter={handleDragEnter}

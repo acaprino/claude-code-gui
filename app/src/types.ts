@@ -45,6 +45,7 @@ export interface Settings {
   font_family: string;
   font_size: number;
   chat_font_family?: string;
+  chat_font_size?: number;
   skip_perms: boolean;
   autocompact: boolean;
   active_prompt_ids: string[];
