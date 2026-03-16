@@ -1,4 +1,4 @@
-import { memo, useState, useEffect, useRef } from "react";
+import { memo, useState, useEffect } from "react";
 
 interface Props {
   text: string;
@@ -7,50 +7,31 @@ interface Props {
 
 export default memo(function ThinkingBlock({ text, ended }: Props) {
   const [collapsed, setCollapsed] = useState(false);
-  const [showDots, setShowDots] = useState(true);
-  const dotsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Show dots for first 500ms, then switch to text
-  useEffect(() => {
-    if (text.length > 0) {
-      setShowDots(false);
-    } else if (!dotsTimerRef.current) {
-      dotsTimerRef.current = setTimeout(() => setShowDots(false), 500);
-    }
-    return () => {
-      if (dotsTimerRef.current) clearTimeout(dotsTimerRef.current);
-    };
-  }, [text]);
 
   // Auto-collapse when thinking ends
   useEffect(() => {
     if (ended) setCollapsed(true);
   }, [ended]);
 
-  const lineCount = text.split("\n").length;
+  const lines = text.split("\n");
+  const lineCount = text.length === 0 ? 0 : lines.length;
 
   return (
     <div className={`thinking-block${ended ? " ended" : ""}`}>
       <div className="thinking-block-header" onClick={() => setCollapsed(!collapsed)}>
-        <span className="thinking-block-icon">
-          {ended ? "\uD83E\uDDE0" : "\uD83E\uDDE0"}
-        </span>
+        <span className="thinking-block-icon">[thinking]</span>
         <span className="thinking-block-title">
-          {collapsed ? `Thinking (${lineCount} lines)` : "Thinking"}
+          {collapsed
+            ? lineCount === 0 ? "(empty)" : `(${lineCount} line${lineCount !== 1 ? "s" : ""}) `
+            : text.length === 0
+              ? "..."
+              : lines[0].slice(0, 60)}
         </span>
         <span className="thinking-block-toggle">{collapsed ? "\u25B8" : "\u25BE"}</span>
       </div>
-      {!collapsed && (
+      {!collapsed && text.length > 0 && (
         <div className="thinking-block-body">
-          {showDots && text.length === 0 ? (
-            <div className="thinking-indicator">
-              <span className="thinking-dot" />
-              <span className="thinking-dot" />
-              <span className="thinking-dot" />
-            </div>
-          ) : (
-            <span className="thinking-block-text">{text}</span>
-          )}
+          <span className="thinking-block-text">{text}</span>
         </div>
       )}
     </div>

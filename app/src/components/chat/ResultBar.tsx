@@ -22,6 +22,7 @@ export default memo(function ResultBar({ cost, inputTokens, outputTokens, cacheR
 
   return (
     <div className="result-bar">
+      <span className="rule" />
       <span>${safe(cost).toFixed(3)}</span>
       <span className="result-sep">·</span>
       <span>{fmtTokens(totalTokens)} tokens{cached}</span>
@@ -29,6 +30,7 @@ export default memo(function ResultBar({ cost, inputTokens, outputTokens, cacheR
       <span>{safe(turns)} turn{safe(turns) !== 1 ? "s" : ""}</span>
       <span className="result-sep">·</span>
       <span>{(safe(durationMs) / 1000).toFixed(1)}s</span>
+      <span className="rule" />
     </div>
   );
 });
