@@ -417,7 +417,7 @@ export default memo(function ChatView({
   return (
     <div
       className="chat-view"
-      style={{ fontFamily: `'${fontFamily}', 'Consolas', monospace`, fontSize }}
+      style={{ fontFamily: `'Segoe UI', system-ui, -apple-system, sans-serif`, fontSize }}
       onKeyDown={handleKeyDown}
       tabIndex={0}
       onDragEnter={handleDragEnter}
@@ -428,6 +428,7 @@ export default memo(function ChatView({
       <div className="chat-main-row">
       <div className="chat-main-col">
       <div ref={chatContainerRef} className="chat-messages">
+      <div className="chat-messages-inner">
         {messages.length === 0 && inputState === "idle" && (
           <div className="chat-msg chat-msg--status">Starting agent...</div>
         )}
@@ -473,6 +474,7 @@ export default memo(function ChatView({
           />
         )}
         <div ref={messagesEndRef} />
+      </div>
       </div>
       {/* Chat mode: input below scrollable area (fixed) */}
       {inputStyle !== "terminal" && inputState === "awaiting_input" && (

@@ -44,6 +44,7 @@ export interface Settings {
   theme_idx: number;
   font_family: string;
   font_size: number;
+  chat_font_family?: string;
   skip_perms: boolean;
   autocompact: boolean;
   active_prompt_ids: string[];

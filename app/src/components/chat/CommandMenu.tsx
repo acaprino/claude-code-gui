@@ -30,6 +30,7 @@ interface Props {
 export default memo(function CommandMenu({ filter, sdkCommands = [], onSelect, onDismiss }: Props) {
   const [selectedIdx, setSelectedIdx] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
+  const [maxH, setMaxH] = useState(240);
 
   const lowerFilter = filter.toLowerCase();
 
@@ -56,6 +57,18 @@ export default memo(function CommandMenu({ filter, sdkCommands = [], onSelect, o
   }, [sdkCommands, lowerFilter]);
 
   useEffect(() => { setSelectedIdx(0); }, [filter]);
+
+  // Clamp max-height so the menu never overflows the viewport top
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el) return;
+    const parent = el.parentElement;
+    if (!parent) return;
+    const parentRect = parent.getBoundingClientRect();
+    // Available space above the wrapper, minus some padding
+    const available = parentRect.top - 8;
+    setMaxH(Math.max(120, Math.min(available, 400)));
+  }, [selectableItems.length]);
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -88,7 +101,7 @@ export default memo(function CommandMenu({ filter, sdkCommands = [], onSelect, o
   const sdkOffset = filteredLocal.length;
 
   return (
-    <div className="command-menu" ref={listRef}>
+    <div className="command-menu" ref={listRef} style={{ maxHeight: maxH }}>
       {filteredLocal.length > 0 && (
         <>
           <div className="command-section-header">
