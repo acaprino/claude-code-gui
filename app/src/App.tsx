@@ -15,6 +15,8 @@ import SystemPromptPage from "./components/SystemPromptPage";
 import SessionBrowser from "./components/SessionBrowser";
 import SessionPanel from "./components/SessionPanel";
 import ErrorBoundary from "./components/ErrorBoundary";
+import ShortcutsOverlay from "./components/ShortcutsOverlay";
+import "./components/ShortcutsOverlay.css";
 import "./App.css";
 
 // R13: Cache window reference at module level (always same window in Tauri)
@@ -72,6 +74,15 @@ function AppContent() {
     invoke<SystemPrompt[]>("load_builtin_prompts").then(setAllPrompts).catch(console.error);
   }, []);
   useEffect(() => { reloadPrompts(); }, [reloadPrompts]);
+
+  // Shortcuts overlay
+  const [showShortcuts, setShowShortcuts] = useState(false);
+
+  // Load bundled marketplace plugin paths (Anvil-exclusive by default)
+  const [pluginPaths, setPluginPaths] = useState<string[]>([]);
+  useEffect(() => {
+    invoke<string[]>("get_marketplace_plugins").then(setPluginPaths).catch(console.error);
+  }, []);
 
   const systemPrompt = useMemo(() => {
     const activeIds: string[] = settings?.active_prompt_ids ?? [];
@@ -141,6 +152,15 @@ function AppContent() {
       } else if (e.ctrlKey && e.shiftKey && e.key === "S") {
         e.preventDefault();
         updateSettings({ session_panel_open: !settingsRef.current?.session_panel_open });
+      } else if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key >= "1" && e.key <= "9") {
+        e.preventDefault();
+        const idx = e.key === "9" ? tabsRef.current.length - 1 : parseInt(e.key) - 1;
+        if (idx >= 0 && idx < tabsRef.current.length) {
+          activateTab(tabsRef.current[idx].id);
+        }
+      } else if (e.key === "F1") {
+        e.preventDefault();
+        setShowShortcuts(prev => !prev);
       }
     };
 
@@ -392,6 +412,7 @@ function AppContent() {
                     onError={handleError}
                     onTaglineChange={handleTaglineChange}
                     inputStyle={inputStyle}
+                    plugins={pluginPaths}
                     resumeSessionId={tab.resumeSessionId}
                     forkSessionId={tab.forkSessionId}
                   />
@@ -403,6 +424,7 @@ function AppContent() {
           );
         })}
       </div>
+      {showShortcuts && <ShortcutsOverlay onClose={() => setShowShortcuts(false)} />}
     </div>
   );
 }

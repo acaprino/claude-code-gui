@@ -159,3 +159,33 @@ commands.allow = ["list_agent_sessions"]
 identifier = "allow-get-agent-messages"
 description = "Allows retrieving messages from a past agent session"
 commands.allow = ["get_agent_messages"]
+
+[[permission]]
+identifier = "allow-agent-autocomplete"
+description = "Allows requesting autocomplete from an agent session"
+commands.allow = ["agent_autocomplete"]
+
+[[permission]]
+identifier = "allow-refresh-commands"
+description = "Allows refreshing available slash commands from an agent session"
+commands.allow = ["refresh_commands"]
+
+[[permission]]
+identifier = "allow-autocomplete-files"
+description = "Allows file path autocomplete"
+commands.allow = ["autocomplete_files"]
+
+[[permission]]
+identifier = "allow-read-external-file"
+description = "Allows reading file content for attachment inlining"
+commands.allow = ["read_external_file"]
+
+[[permission]]
+identifier = "allow-get-marketplace-plugins"
+description = "Allows getting bundled marketplace plugin paths"
+commands.allow = ["get_marketplace_plugins"]
+
+[[permission]]
+identifier = "allow-set-marketplace-global"
+description = "Allows enabling/disabling marketplace plugins globally"
+commands.allow = ["set_marketplace_global"]

@@ -537,6 +537,29 @@ pub async fn refresh_commands(
         .map_err(|_| "Sidecar did not respond".to_string())
 }
 
+// ── File access commands ────────────────────────────────────────────
+
+/// Read the content of a file from anywhere on the filesystem.
+/// Used to inline attached file content into agent messages.
+/// Handles UTF-8 and falls back to lossy conversion for other encodings.
+const MAX_EXTERNAL_FILE_SIZE: u64 = 1_048_576; // 1 MB
+
+#[tauri::command]
+pub fn read_external_file(path: String) -> Result<String, String> {
+    log_info!("read_external_file: {path}");
+    let p = std::path::Path::new(&path);
+    if !p.is_file() {
+        return Err("File does not exist".to_string());
+    }
+    let meta = std::fs::metadata(p).map_err(|e| format!("Cannot read file: {e}"))?;
+    if meta.len() > MAX_EXTERNAL_FILE_SIZE {
+        return Err(format!("File too large ({} bytes, max {})", meta.len(), MAX_EXTERNAL_FILE_SIZE));
+    }
+    let bytes = std::fs::read(p).map_err(|e| format!("Cannot read file: {e}"))?;
+    // Try UTF-8 first, then lossy fallback for Windows-1252 etc.
+    Ok(String::from_utf8(bytes.clone()).unwrap_or_else(|_| String::from_utf8_lossy(&bytes).into_owned()))
+}
+
 // ── Marketplace commands ────────────────────────────────────────────
 
 #[tauri::command]

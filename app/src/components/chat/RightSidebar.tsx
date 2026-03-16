@@ -11,9 +11,10 @@ type SidebarTab = "bookmarks" | "minimap" | "todos" | "thinking";
 interface Props {
   messages: ChatMessage[];
   onScrollToMessage: (msgId: string) => void;
+  scrollContainerRef?: React.RefObject<HTMLDivElement | null>;
 }
 
-export default memo(function RightSidebar({ messages, onScrollToMessage }: Props) {
+export default memo(function RightSidebar({ messages, onScrollToMessage, scrollContainerRef }: Props) {
   const [activeTab, setActiveTab] = useState<SidebarTab>("bookmarks");
 
   const tabs: { id: SidebarTab; icon: string; title: string }[] = [
@@ -41,8 +42,8 @@ export default memo(function RightSidebar({ messages, onScrollToMessage }: Props
         {activeTab === "bookmarks" && (
           <BookmarkPanel messages={messages} onScrollToMessage={onScrollToMessage} />
         )}
-        {activeTab === "minimap" && (
-          <MinimapPanel messages={messages} onScrollToMessage={onScrollToMessage} />
+        {activeTab === "minimap" && scrollContainerRef && (
+          <MinimapPanel messages={messages} scrollContainerRef={scrollContainerRef} />
         )}
         {activeTab === "todos" && (
           <TodoPanel messages={messages} />

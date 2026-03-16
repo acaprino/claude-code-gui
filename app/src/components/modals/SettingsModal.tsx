@@ -1,4 +1,5 @@
 import { memo, useState, useEffect, useRef, useCallback } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { Settings, THEMES, SORT_ORDERS } from "../../types";
 import SegmentedControl from "../SegmentedControl";
 import Modal from "../Modal";
@@ -329,6 +330,20 @@ export default memo(function SettingsModal({ settings, onClose, onUpdate }: Sett
               {settings.autocomplete_enabled !== false ? "ON" : "off"}
             </button>
           </div>
+          <div className="settings-toggle-row">
+            <span>Marketplace (global CLI)</span>
+            <button
+              className={`settings-toggle-btn ${settings.marketplace_global ? "active" : ""}`}
+              onClick={() => {
+                const next = !settings.marketplace_global;
+                onUpdate({ marketplace_global: next });
+                invoke("set_marketplace_global", { enabled: next }).catch(console.error);
+              }}
+            >
+              {settings.marketplace_global ? "ON" : "off"}
+            </button>
+          </div>
+          <p className="modal-hint">When ON, anvil-toolset plugins are also available in standalone Claude Code CLI sessions.</p>
         </div>
       </div>
 

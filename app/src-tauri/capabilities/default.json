@@ -41,6 +41,12 @@
     "allow-agent-permission",
     "allow-agent-set-model",
     "allow-list-agent-sessions",
-    "allow-get-agent-messages"
+    "allow-get-agent-messages",
+    "allow-agent-autocomplete",
+    "allow-refresh-commands",
+    "allow-autocomplete-files",
+    "allow-read-external-file",
+    "allow-get-marketplace-plugins",
+    "allow-set-marketplace-global"
   ]
 }

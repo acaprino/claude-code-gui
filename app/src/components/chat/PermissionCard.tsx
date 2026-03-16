@@ -25,13 +25,13 @@ export default memo(function PermissionCard({ tool, description, suggestions, re
       <div className="perm-card-question">
         <span>Allow <strong>{tool}</strong>: {description}?</span>
         <div className="perm-card-actions">
-          <button className="perm-btn perm-btn--yes" onClick={() => onRespond(true)}>Y</button>
+          <button className="perm-btn perm-btn--yes" onClick={() => onRespond(true)}><u>Y</u>es</button>
           {suggestions && suggestions.length > 0 && (
             <button className="perm-btn perm-btn--session" onClick={() => onRespond(true, suggestions)}>
-              session
+              <u>A</u>llow session
             </button>
           )}
-          <button className="perm-btn perm-btn--no" onClick={() => onRespond(false)}>n</button>
+          <button className="perm-btn perm-btn--no" onClick={() => onRespond(false)}><u>N</u>o</button>
         </div>
       </div>
     </div>

@@ -124,6 +124,42 @@
 
 .minimap-block:hover { opacity: 1 !important; }
 
+/* ── Sublime-style Minimap ────────────────────────────────────── */
+.minimap-panel-sublime {
+  position: relative;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 2px;
+  line-height: 1.2;
+  overflow: hidden;
+  padding: 2px;
+  user-select: none;
+}
+
+.minimap-viewport {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  border-left: 2px solid var(--accent);
+  pointer-events: auto;
+  cursor: grab;
+  z-index: 1;
+  min-height: 12px;
+  transition: top 0.05s linear;
+}
+
+.minimap-viewport:active { cursor: grabbing; }
+
+.minimap-text-block {
+  white-space: pre-wrap;
+  word-break: break-all;
+  overflow: hidden;
+  max-height: 40px;
+  opacity: 0.7;
+  padding: 0 1px;
+}
+
 /* ── Thinking History Panel ────────────────────────────────────── */
 .thinking-history-panel {
   display: flex;

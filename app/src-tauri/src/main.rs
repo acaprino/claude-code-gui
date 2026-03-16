@@ -147,6 +147,7 @@ fn main() {
             commands::get_agent_messages,
             commands::agent_autocomplete,
             commands::refresh_commands,
+            commands::read_external_file,
             commands::get_marketplace_plugins,
             commands::set_marketplace_global,
             autocomplete::autocomplete_files,

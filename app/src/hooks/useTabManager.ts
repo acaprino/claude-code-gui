@@ -96,8 +96,14 @@ export function useTabManager() {
     [saveableKey],
   );
 
-  // Save session whenever saveable state changes (debounced)
+  // Save session whenever saveable state changes (debounced).
+  // Also flush immediately on beforeunload so closing the window persists state.
   const saveTimerRef = useRef<number | null>(null);
+  const saveableStateRef = useRef(saveableState);
+  saveableStateRef.current = saveableState;
+  const sessionLoadedRef = useRef(sessionLoaded);
+  sessionLoadedRef.current = sessionLoaded;
+
   useEffect(() => {
     if (!sessionLoaded) return;
 
@@ -111,6 +117,18 @@ export function useTabManager() {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
   }, [saveableState, sessionLoaded]);
+
+  // Flush pending save on window close so tab state is never lost
+  useEffect(() => {
+    const flushSave = () => {
+      if (!sessionLoadedRef.current) return;
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      const terminalTabs: SavedTab[] = JSON.parse(saveableStateRef.current);
+      invoke("save_session", { session: { tabs: terminalTabs } }).catch(() => {});
+    };
+    window.addEventListener("beforeunload", flushSave);
+    return () => window.removeEventListener("beforeunload", flushSave);
+  }, []);
 
   const addTab = useCallback(() => {
     const tab = createNewTab();

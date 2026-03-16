@@ -3,6 +3,8 @@ import { spawnAgent, resumeAgent, forkAgent, sendAgentMessage, killAgent, respon
 import { MODELS, EFFORTS } from "../types";
 import type { AgentEvent, Attachment, ChatMessage, PermissionSuggestion, SlashCommand, AgentInfoSDK } from "../types";
 import { open } from "@tauri-apps/plugin-dialog";
+import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { sanitizeInput } from "../utils/sanitizeInput";
 import ChatInput from "./chat/ChatInput";
 import type { Command } from "./chat/CommandMenu";
@@ -55,7 +57,8 @@ export default memo(function ChatView({
   const agentStartedRef = useRef(false);
   const refreshIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const tabIdRef = useRef(tabId);
-  const dragCounterRef = useRef(0);
+  tabIdRef.current = tabId;
+
   // StrictMode kill-cancellation: cleanup sets true, re-mount sets false.
   // Deferred kill only fires if still true (real unmount, not StrictMode).
   const pendingKillRef = useRef(false);
@@ -99,6 +102,19 @@ export default memo(function ChatView({
     el.addEventListener("scroll", handleScroll, { passive: true });
     return () => el.removeEventListener("scroll", handleScroll);
   }, [inputStyle]);
+
+  // Auto-focus textarea when the window regains focus (alt-tab back to Anvil)
+  useEffect(() => {
+    if (!isActive) return;
+    const handleWindowFocus = () => {
+      requestAnimationFrame(() => {
+        const textarea = chatContainerRef.current?.closest(".chat-view")?.querySelector("textarea");
+        textarea?.focus();
+      });
+    };
+    window.addEventListener("focus", handleWindowFocus);
+    return () => window.removeEventListener("focus", handleWindowFocus);
+  }, [isActive]);
 
   // ── Agent lifecycle ─────────────────────────────────────────────
   useEffect(() => {
@@ -255,6 +271,8 @@ export default memo(function ChatView({
       }
     };
 
+    let channelRef: { onmessage: ((event: AgentEvent) => void) | null } | null = null;
+
     const launchPromise = resumeSessionId
       ? resumeAgent(tabId, resumeSessionId, projectPath, modelId, effortId, plugins, handleAgentEvent)
       : forkSessionId
@@ -262,7 +280,8 @@ export default memo(function ChatView({
         : spawnAgent(tabId, projectPath, modelId, effortId, sanitizeInput(systemPrompt), skipPerms, plugins, handleAgentEvent);
 
     launchPromise
-      .then(() => {
+      .then((channel) => {
+        channelRef = channel;
         // Don't kill here if cancelled — the deferred kill in cleanup handles it.
         // Killing here would race with the re-mount's spawn in StrictMode.
         if (cancelled) return;
@@ -285,6 +304,8 @@ export default memo(function ChatView({
 
     return () => {
       cancelled = true;
+      // Null out channel handler to prevent stale events from StrictMode's first mount
+      if (channelRef) channelRef.onmessage = null;
       // Clear commands/agents refresh interval
       if (refreshIntervalRef.current) {
         clearInterval(refreshIntervalRef.current);
@@ -304,25 +325,50 @@ export default memo(function ChatView({
   }, []);
 
   // ── Input submission ────────────────────────────────────────────
-  const handleSubmit = (text: string, attachments: Attachment[]) => {
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const handleSubmit = useCallback(async (text: string, attachments: Attachment[]) => {
     if (!agentStartedRef.current) return;
-    // Build message with attachment paths prepended
+    // Block input immediately to prevent double-submit during file reads
+    setInputState("processing");
+
+    // Read file content for attachments outside the project directory
     let fullText = text;
     if (attachments.length > 0) {
-      const attachPrefix = attachments.map(a => `[Attached: ${a.path}]`).join("\n");
+      const parts: string[] = [];
+      for (const a of attachments) {
+        if (/\.(png|jpg|jpeg|gif|webp|bmp|svg)$/i.test(a.path)) {
+          parts.push(`[Attached image: ${a.path}]`);
+        } else {
+          try {
+            const content = await invoke<string>("read_external_file", { path: a.path });
+            const filename = a.path.replace(/\\/g, "/").split("/").pop() || a.path;
+            parts.push(`<file path="${a.path}" name="${filename}">\n${content}\n</file>`);
+          } catch {
+            parts.push(`[Attached: ${a.path}]`);
+          }
+        }
+      }
+      const attachPrefix = parts.join("\n");
       fullText = attachPrefix + (text ? "\n\n" + text : "");
     }
-    if (!fullText.trim()) return;
+    if (!fullText.trim()) {
+      setInputState("awaiting_input");
+      return;
+    }
+    // Guard: agent may have been killed during file reads
+    if (!agentStartedRef.current || exitedRef.current) {
+      setInputState("awaiting_input");
+      return;
+    }
     setMessages(prev => [...prev, { id: nextId(), role: "user", text: fullText, timestamp: Date.now() }]);
-    setInputState("processing");
     sendAgentMessage(tabId, fullText).catch((err) => {
       setMessages(prev => [...prev, { id: nextId(), role: "error", code: "send", message: String(err), timestamp: Date.now() }]);
     });
-  };
+  }, [tabId]);
 
   // ── Permission response ─────────────────────────────────────────
   const respondedIdsRef = useRef(new Set<string>());
-  const handlePermissionRespond = (msgId: string, allow: boolean, suggestions?: PermissionSuggestion[]) => {
+  const handlePermissionRespond = useCallback((msgId: string, allow: boolean, suggestions?: PermissionSuggestion[]) => {
     // Guard against double-click race
     if (respondedIdsRef.current.has(msgId)) return;
     respondedIdsRef.current.add(msgId);
@@ -332,31 +378,63 @@ export default memo(function ChatView({
     respondPermission(tabId, allow, suggestions).catch((err) => {
       setMessages(prev => [...prev, { id: nextId(), role: "error", code: "permission", message: String(err), timestamp: Date.now() }]);
     });
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabId]);
 
   // ── Scroll to message (for sidebar navigation) ─────────────────
-  const handleScrollToMessage = (msgId: string) => {
+  const handleScrollToMessage = useCallback((msgId: string) => {
     const el = document.getElementById(`msg-${msgId}`);
     if (el) {
       el.scrollIntoView({ behavior: "smooth", block: "center" });
       el.classList.add("msg-highlight");
       setTimeout(() => el.classList.remove("msg-highlight"), 1000);
     }
-  };
+  }, []);
 
-  // ── Keyboard: Ctrl+C to interrupt, Ctrl+B toggle sidebar ──────
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.ctrlKey && e.key === "c" && inputState === "processing") {
+  // ── Keyboard shortcuts ─────────────────────────────────────────
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    // Ctrl+C: interrupt agent
+    if (e.ctrlKey && e.key === "c") {
       killAgent(tabId).catch(() => {});
+      return;
     }
+    // Ctrl+B: toggle sidebar
     if (e.ctrlKey && e.key === "b") {
       e.preventDefault();
       setSidebarOpen(prev => !prev);
+      return;
     }
-  };
+    // Permission keyboard shortcuts: Y=allow, N=deny, A=allow+session
+    // Only active when a permission prompt is pending (textarea is disabled)
+    if (e.ctrlKey || e.altKey || e.metaKey) return;
+    const key = e.key.toLowerCase();
+    if (key === "y" || key === "n" || key === "a") {
+      // Find the latest unresolved permission
+      setMessages(prev => {
+        let idx = -1;
+        for (let i = prev.length - 1; i >= 0; i--) {
+          const m = prev[i];
+          if (m.role === "permission" && !m.resolved) { idx = i; break; }
+        }
+        if (idx < 0) return prev;
+        const msg = prev[idx];
+        if (msg.role !== "permission") return prev;
+        // Guard against double-respond
+        if (respondedIdsRef.current.has(msg.id)) return prev;
+        respondedIdsRef.current.add(msg.id);
+        const allow = key !== "n";
+        const sugg = key === "a" ? msg.suggestions : undefined;
+        respondPermission(tabId, allow, sugg).catch(() => {});
+        const next = [...prev];
+        next[idx] = { ...msg, resolved: true, allowed: allow };
+        return next;
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabId]);
 
   // ── Slash commands ─────────────────────────────────────────────
-  const handleCommand = (command: Command) => {
+  const handleCommand = useCallback((command: Command) => {
     if (command.source === "skill") {
       // SDK skill — send as slash command text to agent
       sendAgentMessage(tabId, command.name).catch(console.error);
@@ -385,7 +463,8 @@ export default memo(function ChatView({
         window.dispatchEvent(new CustomEvent("anvil:open-sessions"));
         break;
     }
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabId]);
 
   // ── Stable callbacks for ChatInput memo ─────────────────────────
   const handleDroppedFilesConsumed = useCallback(() => setDroppedFiles([]), []);
@@ -399,40 +478,47 @@ export default memo(function ChatView({
   // ── Deferred messages for sidebar (skip re-renders during streaming)
   const deferredMessages = useDeferredValue(messages);
 
-  // ── Drag & Drop ─────────────────────────────────────────────────
-  const handleDragEnter = (e: React.DragEvent) => {
-    e.preventDefault();
-    dragCounterRef.current++;
-    if (dragCounterRef.current === 1) setIsDragging(true);
-  };
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    dragCounterRef.current--;
-    if (dragCounterRef.current === 0) setIsDragging(false);
-  };
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-  };
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    dragCounterRef.current = 0;
-    setIsDragging(false);
-    const files = Array.from(e.dataTransfer.files);
-    if (files.length > 0) {
-      const paths = files.map(f => (f as File & { path?: string }).path || f.name);
-      setDroppedFiles(paths);
-    }
-  };
+  // ── Drag & Drop (Tauri native — provides full file paths) ──────
+  useEffect(() => {
+    if (!isActive) return;
+    const unlisten = getCurrentWindow().onDragDropEvent((event) => {
+      if (event.payload.type === "over" || event.payload.type === "enter") {
+        setIsDragging(true);
+      } else if (event.payload.type === "leave") {
+        setIsDragging(false);
+      } else if (event.payload.type === "drop") {
+        setIsDragging(false);
+        const paths = event.payload.paths.map(p => String(p));
+        if (paths.length > 0) {
+          setDroppedFiles(paths);
+          messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
+          getCurrentWindow().setFocus().then(() => {
+            setTimeout(() => {
+              const textarea = chatContainerRef.current?.closest(".chat-view")?.querySelector("textarea");
+              textarea?.focus();
+            }, 100);
+          }).catch(() => {});
+        }
+      }
+    });
+    return () => { unlisten.then(fn => fn()); };
+  }, [isActive]);
+
+  // Click anywhere in chat → refocus textarea (unless clicking another input)
+  const handleClick = useCallback((e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.tagName === "TEXTAREA" || target.tagName === "INPUT" || target.isContentEditable) return;
+    if (target.closest("button, a, [role='button']")) return;
+    const textarea = (e.currentTarget as HTMLElement).querySelector("textarea");
+    textarea?.focus();
+  }, []);
 
   return (
     <div
       className="chat-view"
       onKeyDown={handleKeyDown}
+      onClick={handleClick}
       tabIndex={0}
-      onDragEnter={handleDragEnter}
-      onDragLeave={handleDragLeave}
-      onDragOver={handleDragOver}
-      onDrop={handleDrop}
     >
       <div className="chat-main-row">
       <div className="chat-main-col">
@@ -511,7 +597,7 @@ export default memo(function ChatView({
           sdkCommands={sdkCommands}
           sdkAgents={sdkAgents}
           droppedFiles={droppedFiles}
-          onDroppedFilesConsumed={() => setDroppedFiles([])}
+          onDroppedFilesConsumed={handleDroppedFilesConsumed}
         />
       )}
       {inputStyle !== "terminal" && inputState === "processing" && !hasUnresolvedPermission && (
@@ -525,7 +611,7 @@ export default memo(function ChatView({
           sdkCommands={sdkCommands}
           sdkAgents={sdkAgents}
           droppedFiles={droppedFiles}
-          onDroppedFilesConsumed={() => setDroppedFiles([])}
+          onDroppedFilesConsumed={handleDroppedFilesConsumed}
         />
       )}
       {/* Floating mini-input for terminal mode when scrolled up */}
@@ -539,7 +625,7 @@ export default memo(function ChatView({
       )}
       </div>{/* end chat-main-col */}
       {sidebarOpen && (
-        <RightSidebar messages={deferredMessages} onScrollToMessage={handleScrollToMessage} />
+        <RightSidebar messages={deferredMessages} onScrollToMessage={handleScrollToMessage} scrollContainerRef={chatContainerRef} />
       )}
       </div>{/* end chat-main-row */}
       <div className="chat-bottom-bar">

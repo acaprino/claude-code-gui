@@ -58,6 +58,7 @@ export interface Settings {
   autocomplete_enabled?: boolean;
   session_panel_open?: boolean;
   input_style?: "chat" | "terminal";
+  marketplace_global?: boolean;
 }
 
 export interface UsageEntry {
