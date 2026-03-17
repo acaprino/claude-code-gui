@@ -284,17 +284,14 @@
   transition: background 0.1s ease-out;
 }
 
-.tab-sidebar .context-menu-item:hover {
+.tab-sidebar .context-menu-item:hover,
+.tab-sidebar .context-menu-item[data-highlighted] {
   background: var(--hover-overlay);
+  outline: none;
 }
 
 .tab-sidebar .context-menu-item:active {
   background: var(--hover-overlay-subtle);
-}
-
-.tab-sidebar .context-menu-item:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
 }
 
 /* ── Retro overrides ── */

@@ -61,34 +61,48 @@
   border-top: 1px solid color-mix(in srgb, var(--surface) 50%, transparent);
 }
 
-.settings-toggle-btn {
-  padding: var(--space-1) var(--space-2);
-  border-radius: var(--radius-sm);
+.settings-switch {
+  width: 36px;
+  height: 20px;
+  border-radius: 10px;
   border: 1px solid var(--surface);
   background: var(--surface);
-  color: var(--text-dim);
-  font-size: var(--text-xs);
   cursor: pointer;
-  transition: background 0.15s ease-out, color 0.15s ease-out, border-color 0.15s ease-out, transform 0.1s ease-out;
+  position: relative;
+  padding: 0;
+  transition: background 0.15s ease-out, border-color 0.15s ease-out;
 }
 
-.settings-toggle-btn:hover {
+.settings-switch:hover {
   border-color: var(--overlay1);
-  color: var(--text);
 }
 
-.settings-toggle-btn:active {
+.settings-switch:active {
   transform: scale(0.95);
   transition-duration: 0.05s;
 }
 
-.settings-toggle-btn.active {
-  background: color-mix(in srgb, var(--green) 15%, transparent);
+.settings-switch[data-state="checked"] {
+  background: color-mix(in srgb, var(--green) 30%, transparent);
   border-color: var(--green);
-  color: var(--green);
 }
 
-.settings-toggle-btn:focus-visible {
+.settings-switch:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+.settings-switch-thumb {
+  display: block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--text-dim);
+  transition: transform 0.15s ease-out, background 0.15s ease-out;
+  transform: translateX(2px);
+}
+
+.settings-switch[data-state="checked"] .settings-switch-thumb {
+  transform: translateX(19px);
+  background: var(--green);
 }

@@ -1,4 +1,5 @@
 import { memo, useState } from "react";
+import { Collapsible } from "radix-ui";
 
 interface Props {
   tool: string;
@@ -14,8 +15,8 @@ export default memo(function ToolCard({ tool, input, output, success }: Props) {
   const pending = success === undefined;
 
   return (
-    <div className={`tool-card${success === false ? " failed" : ""}`}>
-      <div className="tool-card-header" onClick={() => setExpanded(!expanded)}>
+    <Collapsible.Root className={`tool-card${success === false ? " failed" : ""}`} open={expanded} onOpenChange={setExpanded}>
+      <Collapsible.Trigger className="tool-card-header">
         <span className="tool-card-icon">$</span>
         <span className="tool-card-name">{tool}</span>
         {!expanded && <span className="tool-card-preview">{truncatedInput.split("\n")[0].slice(0, 60)}</span>}
@@ -23,8 +24,8 @@ export default memo(function ToolCard({ tool, input, output, success }: Props) {
           {pending ? "\u25CB" : success ? "\u2713" : "\u2717"}
         </span>
         <span className="tool-card-toggle">{expanded ? "\u25BE" : "\u25B8"}</span>
-      </div>
-      {expanded && (
+      </Collapsible.Trigger>
+      <Collapsible.Content>
         <div className="tool-card-body">
           <pre className="tool-card-input">{inputStr}</pre>
           {output && (
@@ -34,7 +35,7 @@ export default memo(function ToolCard({ tool, input, output, success }: Props) {
             </div>
           )}
         </div>
-      )}
-    </div>
+      </Collapsible.Content>
+    </Collapsible.Root>
   );
 });

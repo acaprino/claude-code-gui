@@ -300,8 +300,10 @@
   transition: background 0.1s ease-out;
 }
 
-.context-menu-item:hover {
+.context-menu-item:hover,
+.context-menu-item[data-highlighted] {
   background: var(--hover-overlay);
+  outline: none;
 }
 
 .context-menu-item:active {

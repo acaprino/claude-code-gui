@@ -186,7 +186,6 @@
 
 /* Context menu (spawned via DOM) */
 .session-context-menu {
-  position: fixed;
   z-index: var(--z-modal);
   background: var(--surface);
   border: 1px solid color-mix(in srgb, var(--overlay0) 40%, transparent);
@@ -196,7 +195,7 @@
   box-shadow: 0 4px 12px color-mix(in srgb, var(--crust) 60%, transparent);
 }
 
-.session-context-menu button {
+.session-context-menu .context-menu-item {
   display: block;
   width: 100%;
   text-align: left;
@@ -208,8 +207,10 @@
   font-size: var(--text-sm);
 }
 
-.session-context-menu button:hover {
+.session-context-menu .context-menu-item:hover,
+.session-context-menu .context-menu-item[data-highlighted] {
   background: var(--hover-overlay);
+  outline: none;
 }
 
 /* Theme crossfade — .session-panel is in App.css; only .session-item needs it here */

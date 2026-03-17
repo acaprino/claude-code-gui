@@ -2,11 +2,15 @@
   position: fixed;
   inset: 0;
   background: var(--backdrop);
-  display: flex;
-  align-items: center;
-  justify-content: center;
   z-index: var(--z-modal);
+}
+
+.modal-backdrop[data-state="open"] {
   animation: backdrop-in 0.15s ease-out;
+}
+
+.modal-backdrop[data-state="closed"] {
+  animation: backdrop-out 0.12s ease-in forwards;
 }
 
 @keyframes backdrop-in {
@@ -19,11 +23,12 @@
   to { opacity: 0; }
 }
 
-.modal-backdrop.closing {
-  animation: backdrop-out 0.12s ease-in forwards;
-}
-
 .modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: var(--z-modal);
   background: var(--bg);
   border: 1px solid var(--surface);
   border-radius: var(--radius-md);
@@ -33,21 +38,24 @@
   max-height: 80vh;
   overflow-y: auto;
   box-shadow: var(--shadow-modal);
+}
+
+.modal[data-state="open"] {
   animation: modal-in 0.2s ease-out;
 }
 
+.modal[data-state="closed"] {
+  animation: modal-out 0.12s ease-in forwards;
+}
+
 @keyframes modal-in {
-  from { opacity: 0; transform: translateY(8px) scale(0.98); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+  from { opacity: 0; transform: translate(-50%, -50%) translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: translate(-50%, -50%) translateY(0) scale(1); }
 }
 
 @keyframes modal-out {
-  from { opacity: 1; transform: translateY(0) scale(1); }
-  to { opacity: 0; transform: translateY(8px) scale(0.98); }
-}
-
-.modal.closing {
-  animation: modal-out 0.12s ease-in forwards;
+  from { opacity: 1; transform: translate(-50%, -50%) translateY(0) scale(1); }
+  to { opacity: 0; transform: translate(-50%, -50%) translateY(8px) scale(0.98); }
 }
 
 .modal-title {

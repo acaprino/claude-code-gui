@@ -1,5 +1,6 @@
 import { memo, useState, useEffect, useRef, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { Switch } from "radix-ui";
 import { Settings, THEMES, SORT_ORDERS } from "../../types";
 import SegmentedControl from "../SegmentedControl";
 import Modal from "../Modal";
@@ -314,43 +315,46 @@ export default memo(function SettingsModal({ settings, onClose, onUpdate }: Sett
           </div>
           <div className="settings-toggle-row">
             <span>Security gate</span>
-            <button
-              className={`settings-toggle-btn ${settings.security_gate ? "active" : ""}`}
-              onClick={() => onUpdate({ security_gate: !settings.security_gate })}
+            <Switch.Root
+              className="settings-switch"
+              checked={settings.security_gate}
+              onCheckedChange={(checked) => onUpdate({ security_gate: checked })}
             >
-              {settings.security_gate ? "ON" : "off"}
-            </button>
+              <Switch.Thumb className="settings-switch-thumb" />
+            </Switch.Root>
           </div>
           <div className="settings-toggle-row">
             <span>Autocomplete</span>
-            <button
-              className={`settings-toggle-btn ${settings.autocomplete_enabled !== false ? "active" : ""}`}
-              onClick={() => onUpdate({ autocomplete_enabled: !(settings.autocomplete_enabled !== false) })}
+            <Switch.Root
+              className="settings-switch"
+              checked={settings.autocomplete_enabled !== false}
+              onCheckedChange={(checked) => onUpdate({ autocomplete_enabled: checked })}
             >
-              {settings.autocomplete_enabled !== false ? "ON" : "off"}
-            </button>
+              <Switch.Thumb className="settings-switch-thumb" />
+            </Switch.Root>
           </div>
           <div className="settings-toggle-row">
             <span>Hide thinking</span>
-            <button
-              className={`settings-toggle-btn ${settings.hide_thinking ? "active" : ""}`}
-              onClick={() => onUpdate({ hide_thinking: !settings.hide_thinking })}
+            <Switch.Root
+              className="settings-switch"
+              checked={settings.hide_thinking ?? false}
+              onCheckedChange={(checked) => onUpdate({ hide_thinking: checked })}
             >
-              {settings.hide_thinking ? "ON" : "off"}
-            </button>
+              <Switch.Thumb className="settings-switch-thumb" />
+            </Switch.Root>
           </div>
           <div className="settings-toggle-row">
             <span>Marketplace (global CLI)</span>
-            <button
-              className={`settings-toggle-btn ${settings.marketplace_global ? "active" : ""}`}
-              onClick={() => {
-                const next = !settings.marketplace_global;
-                onUpdate({ marketplace_global: next });
-                invoke("set_marketplace_global", { enabled: next }).catch(console.error);
+            <Switch.Root
+              className="settings-switch"
+              checked={settings.marketplace_global ?? false}
+              onCheckedChange={(checked) => {
+                onUpdate({ marketplace_global: checked });
+                invoke("set_marketplace_global", { enabled: checked }).catch(console.error);
               }}
             >
-              {settings.marketplace_global ? "ON" : "off"}
-            </button>
+              <Switch.Thumb className="settings-switch-thumb" />
+            </Switch.Root>
           </div>
           <p className="modal-hint">When ON, anvil-toolset plugins are also available in standalone Claude Code CLI sessions.</p>
         </div>

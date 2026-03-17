@@ -1,4 +1,5 @@
 import { memo, useState, useEffect, useCallback, useRef } from "react";
+import { ContextMenu } from "radix-ui";
 import { listAgentSessions } from "../hooks/useAgentSession";
 import type { SessionInfo } from "../types";
 import "./SessionPanel.css";
@@ -9,13 +10,6 @@ interface SessionPanelProps {
   onClose: () => void;
   onResumeSession: (sessionId: string, cwd: string, inNewTab?: boolean) => void;
   onForkSession: (sessionId: string, cwd: string, inNewTab?: boolean) => void;
-}
-
-interface ContextMenu {
-  sessionId: string;
-  cwd: string;
-  x: number;
-  y: number;
 }
 
 function relativeTime(ms: number): string {
@@ -45,14 +39,15 @@ function SessionPanel({ projectPath, isOpen, onClose, onResumeSession, onForkSes
   const [loading, setLoading] = useState(false);
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [filter, setFilter] = useState("");
-  const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const selectedIdxRef = useRef(selectedIdx);
   const filterRef = useRef(filter);
+  const sessionsRef = useRef(sessions);
 
   useEffect(() => { selectedIdxRef.current = selectedIdx; }, [selectedIdx]);
   useEffect(() => { filterRef.current = filter; }, [filter]);
+  useEffect(() => { sessionsRef.current = sessions; }, [sessions]);
 
   // Fetch sessions when panel opens or project changes
   useEffect(() => {
@@ -83,8 +78,8 @@ function SessionPanel({ projectPath, isOpen, onClose, onResumeSession, onForkSes
     const idx = selectedIdxRef.current;
     const fl = filterRef.current;
     const list = fl
-      ? sessions.filter((s) => matchesFilter(s, fl.toLowerCase()))
-      : sessions;
+      ? sessionsRef.current.filter((s) => matchesFilter(s, fl.toLowerCase()))
+      : sessionsRef.current;
 
     switch (e.key) {
       case "ArrowUp":
@@ -150,7 +145,7 @@ function SessionPanel({ projectPath, isOpen, onClose, onResumeSession, onForkSes
         }
         break;
     }
-  }, [isOpen, sessions, onResumeSession, onForkSession, onClose]);
+  }, [isOpen, onResumeSession, onForkSession, onClose]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -171,27 +166,6 @@ function SessionPanel({ projectPath, isOpen, onClose, onResumeSession, onForkSes
       panelRef.current.focus();
     }
   }, [isOpen]);
-
-  // Close context menu on click outside or Escape
-  const contextMenuOpen = contextMenu != null;
-  useEffect(() => {
-    if (!contextMenuOpen) return;
-    const close = () => setContextMenu(null);
-    const handleKey = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
-    window.addEventListener("click", close);
-    window.addEventListener("keydown", handleKey);
-    return () => {
-      window.removeEventListener("click", close);
-      window.removeEventListener("keydown", handleKey);
-    };
-  }, [contextMenuOpen]);
-
-  const handleContextMenu = useCallback((e: React.MouseEvent, sessionId: string, cwd: string) => {
-    e.preventDefault();
-    const x = Math.min(e.clientX, window.innerWidth - 180);
-    const y = Math.min(e.clientY, window.innerHeight - 120);
-    setContextMenu({ sessionId, cwd, x, y });
-  }, []);
 
   if (!isOpen) return null;
 
@@ -225,41 +199,59 @@ function SessionPanel({ projectPath, isOpen, onClose, onResumeSession, onForkSes
             const prompt = session.firstPrompt || "";
 
             return (
-              <div
-                key={session.id}
-                className={`session-item ${isSelected ? "selected" : ""}`}
-                onClick={(e) => onResumeSession(session.id, session.cwd, e.ctrlKey)}
-                onContextMenu={(e) => handleContextMenu(e, session.id, session.cwd)}
-              >
-                <div className="session-item__top">
-                  <span className="session-item__title" title={title}>{title}</span>
-                  <span className="session-item__date">{relativeTime(session.lastModified)}</span>
-                </div>
-                {prompt && (
-                  <div className="session-item__prompt" title={prompt}>{prompt}</div>
-                )}
-                <div className="session-item__actions">
-                  <button
-                    className="session-item__action"
-                    onClick={(e) => { e.stopPropagation(); onResumeSession(session.id, session.cwd); }}
-                    title="Resume"
-                    aria-label="Resume session"
+              <ContextMenu.Root key={session.id}>
+                <ContextMenu.Trigger asChild>
+                  <div
+                    className={`session-item ${isSelected ? "selected" : ""}`}
+                    onClick={(e) => onResumeSession(session.id, session.cwd, e.ctrlKey)}
                   >
-                    {"\u25b6"}
-                  </button>
-                  <button
-                    className="session-item__action"
-                    onClick={(e) => { e.stopPropagation(); onForkSession(session.id, session.cwd); }}
-                    title="Fork"
-                    aria-label="Fork session"
-                  >
-                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                      <line x1="5" y1="1" x2="5" y2="9" stroke="currentColor" strokeWidth="1.2"/>
-                      <line x1="5" y1="5" x2="9" y2="2" stroke="currentColor" strokeWidth="1.2"/>
-                    </svg>
-                  </button>
-                </div>
-              </div>
+                    <div className="session-item__top">
+                      <span className="session-item__title" title={title}>{title}</span>
+                      <span className="session-item__date">{relativeTime(session.lastModified)}</span>
+                    </div>
+                    {prompt && (
+                      <div className="session-item__prompt" title={prompt}>{prompt}</div>
+                    )}
+                    <div className="session-item__actions">
+                      <button
+                        className="session-item__action"
+                        onClick={(e) => { e.stopPropagation(); onResumeSession(session.id, session.cwd); }}
+                        title="Resume"
+                        aria-label="Resume session"
+                      >
+                        {"\u25b6"}
+                      </button>
+                      <button
+                        className="session-item__action"
+                        onClick={(e) => { e.stopPropagation(); onForkSession(session.id, session.cwd); }}
+                        title="Fork"
+                        aria-label="Fork session"
+                      >
+                        <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                          <line x1="5" y1="1" x2="5" y2="9" stroke="currentColor" strokeWidth="1.2"/>
+                          <line x1="5" y1="5" x2="9" y2="2" stroke="currentColor" strokeWidth="1.2"/>
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </ContextMenu.Trigger>
+                <ContextMenu.Portal>
+                  <ContextMenu.Content className="session-context-menu">
+                    <ContextMenu.Item className="context-menu-item" onSelect={() => onResumeSession(session.id, session.cwd)}>
+                      Resume
+                    </ContextMenu.Item>
+                    <ContextMenu.Item className="context-menu-item" onSelect={() => onForkSession(session.id, session.cwd)}>
+                      Fork
+                    </ContextMenu.Item>
+                    <ContextMenu.Item className="context-menu-item" onSelect={() => onResumeSession(session.id, session.cwd, true)}>
+                      Resume in New Tab
+                    </ContextMenu.Item>
+                    <ContextMenu.Item className="context-menu-item" onSelect={() => onForkSession(session.id, session.cwd, true)}>
+                      Fork in New Tab
+                    </ContextMenu.Item>
+                  </ContextMenu.Content>
+                </ContextMenu.Portal>
+              </ContextMenu.Root>
             );
           })
         )}
@@ -269,26 +261,6 @@ function SessionPanel({ projectPath, isOpen, onClose, onResumeSession, onForkSes
         [Enter] Resume  [F] Fork  [Esc] Close
       </div>
 
-      {contextMenu && (
-        <div
-          className="session-context-menu"
-          style={{ left: contextMenu.x, top: contextMenu.y }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button className="context-menu-item" onClick={() => { onResumeSession(contextMenu.sessionId, contextMenu.cwd); setContextMenu(null); }}>
-            Resume
-          </button>
-          <button className="context-menu-item" onClick={() => { onForkSession(contextMenu.sessionId, contextMenu.cwd); setContextMenu(null); }}>
-            Fork
-          </button>
-          <button className="context-menu-item" onClick={() => { onResumeSession(contextMenu.sessionId, contextMenu.cwd, true); setContextMenu(null); }}>
-            Resume in New Tab
-          </button>
-          <button className="context-menu-item" onClick={() => { onForkSession(contextMenu.sessionId, contextMenu.cwd, true); setContextMenu(null); }}>
-            Fork in New Tab
-          </button>
-        </div>
-      )}
     </div>
   );
 }

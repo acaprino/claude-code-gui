@@ -61,14 +61,40 @@
 
 .right-sidebar-content {
   flex: 1;
-  overflow-y: auto;
+  overflow: hidden;
+}
+
+.right-sidebar-viewport {
   padding: var(--space-1);
 }
 
-.right-sidebar-content::-webkit-scrollbar { width: 4px; }
-.right-sidebar-content::-webkit-scrollbar-thumb {
-  background: var(--overlay0);
-  border-radius: 2px;
+/* ── Shared Radix ScrollArea styles ──────────────────────────── */
+.scroll-area-scrollbar {
+  display: flex;
+  touch-action: none;
+  user-select: none;
+  padding: 1px;
+  transition: background 0.15s ease-out;
+}
+
+.scroll-area-scrollbar[data-orientation="vertical"] {
+  width: 6px;
+}
+
+.scroll-area-scrollbar:hover {
+  background: color-mix(in srgb, var(--overlay0) 15%, transparent);
+}
+
+.scroll-area-thumb {
+  flex: 1;
+  background: color-mix(in srgb, var(--overlay0) 50%, transparent);
+  border-radius: 3px;
+  position: relative;
+  transition: background 0.15s ease-out;
+}
+
+.scroll-area-thumb:hover {
+  background: var(--overlay1);
 }
 
 .sidebar-empty {

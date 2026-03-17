@@ -1,15 +1,10 @@
 import { memo, useState, useCallback, useRef, useEffect } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { ContextMenu } from "radix-ui";
 import { Tab, getTabLabel } from "../types";
 import "./TabBar.css";
 
 const appWindow = getCurrentWindow();
-
-interface ContextMenu {
-  tabId: string;
-  x: number;
-  y: number;
-}
 
 interface TabBarProps {
   tabs: Tab[];
@@ -26,7 +21,6 @@ interface TabBarProps {
 export default memo(function TabBar({ tabs, activeTabId, onActivate, onClose, onAdd, onSaveToProjects, onToggleAbout, onToggleUsage, onToggleSessions }: TabBarProps) {
   const [closingIds, setClosingIds] = useState<Set<string>>(new Set());
   const closingTimersRef = useRef<Map<string, number>>(new Map());
-  const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
 
   const handleClose = useCallback((tabId: string) => {
     if (closingTimersRef.current.has(tabId)) return;
@@ -58,36 +52,10 @@ export default memo(function TabBar({ tabs, activeTabId, onActivate, onClose, on
     appWindow.close();
   }, []);
 
-  const handleContextMenu = useCallback((e: React.MouseEvent, tabId: string) => {
-    e.preventDefault();
-    const x = Math.min(e.clientX, window.innerWidth - 180);
-    const y = Math.min(e.clientY, window.innerHeight - 80);
-    setContextMenu({ tabId, x, y });
-  }, []);
-
-  const handleSaveToProjects = useCallback((tabId: string) => {
-    onSaveToProjects?.(tabId);
-    setContextMenu(null);
-  }, [onSaveToProjects]);
-
   // Clean up closing animation timers on unmount
   useEffect(() => () => {
     closingTimersRef.current.forEach((timer) => clearTimeout(timer));
   }, []);
-
-  // Close context menu on click outside or Escape
-  const contextMenuOpen = contextMenu != null;
-  useEffect(() => {
-    if (!contextMenuOpen) return;
-    const close = () => setContextMenu(null);
-    const handleKey = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
-    window.addEventListener("click", close);
-    window.addEventListener("keydown", handleKey);
-    return () => {
-      window.removeEventListener("click", close);
-      window.removeEventListener("keydown", handleKey);
-    };
-  }, [contextMenuOpen]);
 
   return (
     <div className="tab-bar" data-tauri-drag-region>
@@ -98,33 +66,47 @@ export default memo(function TabBar({ tabs, activeTabId, onActivate, onClose, on
           const label = getTabLabel(tab);
 
           return (
-            <div
-              key={tab.id}
-              className={`tab ${isActive ? "active" : ""} ${tab.hasNewOutput ? "has-output" : ""} ${isClosing ? "closing" : ""} ${tab.temporary ? "temporary" : ""}`}
-              onClick={() => !isClosing && onActivate(tab.id)}
-              onContextMenu={(e) => handleContextMenu(e, tab.id)}
-              role="tab"
-              aria-selected={isActive}
-              tabIndex={isActive ? 0 : -1}
-            >
-              <span className="tab-label" title={tab.temporary ? `${label} (temp)` : label}>{label}</span>
-              {tab.exitCode != null && (
-                <span className={`tab-exit ${tab.exitCode === 0 ? "ok" : "err"}`}>
-                  {tab.exitCode === 0 ? "\u2713" : "\u2717"}
-                </span>
-              )}
-              <button
-                className="tab-close"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleClose(tab.id);
-                }}
-                title="Close (Ctrl+F4)"
-                aria-label={`Close ${label}`}
-              >
-                {"\u00d7"}
-              </button>
-            </div>
+            <ContextMenu.Root key={tab.id}>
+              <ContextMenu.Trigger asChild>
+                <div
+                  className={`tab ${isActive ? "active" : ""} ${tab.hasNewOutput ? "has-output" : ""} ${isClosing ? "closing" : ""} ${tab.temporary ? "temporary" : ""}`}
+                  onClick={() => !isClosing && onActivate(tab.id)}
+                  role="tab"
+                  aria-selected={isActive}
+                  tabIndex={isActive ? 0 : -1}
+                >
+                  <span className="tab-label" title={tab.temporary ? `${label} (temp)` : label}>{label}</span>
+                  {tab.exitCode != null && (
+                    <span className={`tab-exit ${tab.exitCode === 0 ? "ok" : "err"}`}>
+                      {tab.exitCode === 0 ? "\u2713" : "\u2717"}
+                    </span>
+                  )}
+                  <button
+                    className="tab-close"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleClose(tab.id);
+                    }}
+                    title="Close (Ctrl+F4)"
+                    aria-label={`Close ${label}`}
+                  >
+                    {"\u00d7"}
+                  </button>
+                </div>
+              </ContextMenu.Trigger>
+              <ContextMenu.Portal>
+                <ContextMenu.Content className="tab-context-menu">
+                  {tab.type === "agent" && tab.temporary && onSaveToProjects && (
+                    <ContextMenu.Item className="context-menu-item" onSelect={() => onSaveToProjects(tab.id)}>
+                      Save to Projects
+                    </ContextMenu.Item>
+                  )}
+                  <ContextMenu.Item className="context-menu-item" onSelect={() => handleClose(tab.id)}>
+                    Close Tab
+                  </ContextMenu.Item>
+                </ContextMenu.Content>
+              </ContextMenu.Portal>
+            </ContextMenu.Root>
           );
         })}
       </div>
@@ -152,26 +134,6 @@ export default memo(function TabBar({ tabs, activeTabId, onActivate, onClose, on
           </svg>
         </button>
       </div>
-      {contextMenu && (() => {
-        const tab = tabs.find((t) => t.id === contextMenu.tabId);
-        if (!tab) return null;
-        return (
-          <div
-            className="tab-context-menu"
-            style={{ left: contextMenu.x, top: contextMenu.y }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {tab.type === "agent" && tab.temporary && onSaveToProjects && (
-              <button className="context-menu-item" onClick={() => handleSaveToProjects(contextMenu.tabId)}>
-                Save to Projects
-              </button>
-            )}
-            <button className="context-menu-item" onClick={() => { handleClose(contextMenu.tabId); setContextMenu(null); }}>
-              Close Tab
-            </button>
-          </div>
-        );
-      })()}
       <div className="window-controls">
         <button className="win-btn minimize" onClick={handleMinimize} aria-label="Minimize">
           <svg width="10" height="1" viewBox="0 0 10 1"><rect width="10" height="1" fill="currentColor"/></svg>
