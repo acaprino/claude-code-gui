@@ -1,6 +1,7 @@
 import { memo, useState, useCallback, useRef, useEffect } from "react";
 import { ContextMenu } from "radix-ui";
 import { Tab, getTabLabel } from "../types";
+import { IconSessions, IconBarChart, IconInfo } from "./Icons";
 import "./TabSidebar.css";
 
 interface TabSidebarProps {
@@ -149,23 +150,13 @@ export default memo(function TabSidebar({
 
       <div className="tab-sidebar__footer">
         <button className="tab-bar-action" onClick={onToggleSessions} title="Sessions (Ctrl+Shift+S)" aria-label="Sessions">
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-            <path d="M2 3.5A4.5 4.5 0 1 1 2 8.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-            <polyline points="2,1 2,3.5 4.5,3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-          </svg>
+          <IconSessions size={14} />
         </button>
         <button className="tab-bar-action" onClick={onToggleUsage} title="Usage Stats (Ctrl+U)" aria-label="Usage Stats">
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-            <rect x="1" y="7" width="2" height="4" rx="0.5" fill="currentColor"/>
-            <rect x="5" y="4" width="2" height="7" rx="0.5" fill="currentColor"/>
-            <rect x="9" y="1" width="2" height="10" rx="0.5" fill="currentColor"/>
-          </svg>
+          <IconBarChart size={14} />
         </button>
         <button className="tab-bar-action" onClick={onToggleAbout} title="About (F12)" aria-label="About">
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-            <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.2"/>
-            <text x="6" y="9" textAnchor="middle" fill="currentColor" fontSize="8" fontWeight="bold" fontFamily="serif">i</text>
-          </svg>
+          <IconInfo size={14} />
         </button>
       </div>
 

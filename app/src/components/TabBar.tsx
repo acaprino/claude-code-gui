@@ -2,6 +2,7 @@ import { memo, useState, useCallback, useRef, useEffect } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { ContextMenu } from "radix-ui";
 import { Tab, getTabLabel } from "../types";
+import { IconSessions, IconBarChart, IconInfo, IconMinimize, IconMaximize, IconClose } from "./Icons";
 import "./TabBar.css";
 
 const appWindow = getCurrentWindow();
@@ -115,34 +116,24 @@ export default memo(function TabBar({ tabs, activeTabId, onActivate, onClose, on
       </button>
       <div className="tab-bar-actions">
         <button className="tab-bar-action" onClick={onToggleSessions} title="Sessions (Ctrl+Shift+S)" aria-label="Sessions">
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-            <path d="M2 3.5A4.5 4.5 0 1 1 2 8.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-            <polyline points="2,1 2,3.5 4.5,3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-          </svg>
+          <IconSessions size={14} />
         </button>
         <button className="tab-bar-action" onClick={onToggleUsage} title="Usage Stats (Ctrl+U)" aria-label="Usage Stats">
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-            <rect x="1" y="7" width="2" height="4" rx="0.5" fill="currentColor"/>
-            <rect x="5" y="4" width="2" height="7" rx="0.5" fill="currentColor"/>
-            <rect x="9" y="1" width="2" height="10" rx="0.5" fill="currentColor"/>
-          </svg>
+          <IconBarChart size={14} />
         </button>
         <button className="tab-bar-action" onClick={onToggleAbout} title="About (F12)" aria-label="About">
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-            <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.2"/>
-            <text x="6" y="9" textAnchor="middle" fill="currentColor" fontSize="8" fontWeight="bold" fontFamily="serif">i</text>
-          </svg>
+          <IconInfo size={14} />
         </button>
       </div>
       <div className="window-controls">
         <button className="win-btn minimize" onClick={handleMinimize} aria-label="Minimize">
-          <svg width="10" height="1" viewBox="0 0 10 1"><rect width="10" height="1" fill="currentColor"/></svg>
+          <IconMinimize />
         </button>
         <button className="win-btn maximize" onClick={handleMaximize} aria-label="Maximize">
-          <svg width="10" height="10" viewBox="0 0 10 10"><rect x="0.5" y="0.5" width="9" height="9" fill="none" stroke="currentColor" strokeWidth="1"/></svg>
+          <IconMaximize />
         </button>
         <button className="win-btn close" onClick={handleWindowClose} aria-label="Close">
-          <svg width="10" height="10" viewBox="0 0 10 10"><line x1="0" y1="0" x2="10" y2="10" stroke="currentColor" strokeWidth="1.2"/><line x1="10" y1="0" x2="0" y2="10" stroke="currentColor" strokeWidth="1.2"/></svg>
+          <IconClose />
         </button>
       </div>
     </div>

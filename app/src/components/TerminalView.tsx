@@ -1,6 +1,7 @@
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { MODELS, EFFORTS } from "../types";
+import type { DisplayItem } from "../hooks/useSessionController";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { fmtTokens } from "../utils/format";
 import type { SessionViewProps } from "./SessionViewProps";
@@ -12,7 +13,42 @@ import TermToolGroup from "./terminal/TermToolGroup";
 import TermPermPrompt from "./terminal/TermPermPrompt";
 import TermThinkingLine from "./terminal/TermThinkingLine";
 import TermErrorLine from "./terminal/TermErrorLine";
+import { IconPlus, IconSidebar } from "./Icons";
 import "./TerminalView.css";
+
+/** Render inline markdown bold/italic/code in plain text */
+function renderInlineMarkdown(text: string): React.ReactNode[] {
+  const parts: React.ReactNode[] = [];
+  // Match **bold**, *italic*, `code`, and plain text segments
+  const re = /(\*\*(.+?)\*\*|\*(.+?)\*|`([^`]+)`)/g;
+  let last = 0;
+  let match: RegExpExecArray | null;
+  let key = 0;
+  while ((match = re.exec(text)) !== null) {
+    if (match.index > last) parts.push(text.slice(last, match.index));
+    if (match[2]) parts.push(<strong key={key++}>{match[2]}</strong>);
+    else if (match[3]) parts.push(<em key={key++}>{match[3]}</em>);
+    else if (match[4]) parts.push(<code key={key++} className="tv-inline-code">{match[4]}</code>);
+    last = match.index + match[0].length;
+  }
+  if (last < text.length) parts.push(text.slice(last));
+  return parts;
+}
+
+/** Render assistant text with inline markdown per line */
+function AssistantText({ text }: { text: string }) {
+  const lines = text.split("\n");
+  return (
+    <pre className="tv-assistant">
+      {lines.map((line, i) => (
+        <span key={i}>
+          {line.includes("**") || line.includes("`") ? renderInlineMarkdown(line) : line}
+          {i < lines.length - 1 ? "\n" : null}
+        </span>
+      ))}
+    </pre>
+  );
+}
 
 /** Elapsed timer — ticks every second while visible */
 const ElapsedTimer = memo(function ElapsedTimer({ startTime }: { startTime: number }) {
@@ -25,12 +61,12 @@ const ElapsedTimer = memo(function ElapsedTimer({ startTime }: { startTime: numb
   return <span className="tv-elapsed">{elapsed}s</span>;
 });
 
-/** Activity spinner — shows breathing dot + label when agent is working */
+/** Activity spinner — shows sigil + label when agent is working */
 const ActivitySpinner = memo(function ActivitySpinner({ label }: { label: string }) {
   const [startTime] = useState(() => Date.now());
   return (
     <div className="tv-activity">
-      <span className="tv-activity-dot" />
+      <span className="tv-activity-sigil">{"\u2026"}</span>
       <span className="tv-activity-label">{label}</span>
       <ElapsedTimer startTime={startTime} />
     </div>
@@ -59,6 +95,30 @@ export default memo(function TerminalView(props: SessionViewProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // ── Turn collapsing: hide tool/thinking/permission/status noise from previous turns ──
+  // A "turn" starts at each user message. Only the last turn shows full detail.
+  // Previous turns keep user + assistant messages, everything else is hidden.
+  const NOISE_ROLES = new Set(["tool", "tool-group", "thinking", "permission", "status", "result"]);
+  const visibleItems = useMemo((): DisplayItem[] => {
+    // Find the last user message index
+    let lastUserIdx = -1;
+    for (let i = displayItems.length - 1; i >= 0; i--) {
+      if (displayItems[i].role === "user") { lastUserIdx = i; break; }
+    }
+    if (lastUserIdx <= 0) return displayItems; // No previous turns to collapse
+
+    const result: DisplayItem[] = [];
+    for (let i = 0; i < displayItems.length; i++) {
+      const item = displayItems[i];
+      // Always hide status messages (the "[] init" / "[] idle" noise)
+      if (item.role === "status") continue;
+      // Before the last user message: only show user + assistant + error + separator
+      if (i < lastUserIdx && NOISE_ROLES.has(item.role)) continue;
+      result.push(item);
+    }
+    return result;
+  }, [displayItems]);
 
   // Auto-scroll
   useEffect(() => {
@@ -95,15 +155,15 @@ export default memo(function TerminalView(props: SessionViewProps) {
   }, [handleInterrupt]);
 
   // Virtualizer
-  const displayItemsRef = useRef(displayItems);
-  displayItemsRef.current = displayItems;
+  const displayItemsRef = useRef(visibleItems);
+  displayItemsRef.current = visibleItems;
 
   const virtualizer = useVirtualizer({
-    count: displayItems.length,
+    count: visibleItems.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => 44,
     overscan: 20,
-    getItemKey: (index) => displayItems[index].id,
+    getItemKey: (index) => visibleItems[index].id,
   });
 
   // Drag & Drop
@@ -134,9 +194,9 @@ export default memo(function TerminalView(props: SessionViewProps) {
 
   // Scroll to a message by ID (used by bookmark panel)
   const handleScrollToMessage = useCallback((msgId: string) => {
-    const idx = displayItems.findIndex(item => item.id === msgId);
+    const idx = visibleItems.findIndex(item => item.id === msgId);
     if (idx >= 0) virtualizer.scrollToIndex(idx, { align: "center" });
-  }, [displayItems, virtualizer]);
+  }, [visibleItems, virtualizer]);
 
   // Click anywhere -> refocus textarea
   const handleClick = useCallback((e: React.MouseEvent) => {
@@ -164,7 +224,7 @@ export default memo(function TerminalView(props: SessionViewProps) {
         {/* Virtualized message list */}
         <div style={{ height: virtualizer.getTotalSize(), width: "100%", position: "relative" }}>
           {virtualizer.getVirtualItems().map((virtualRow) => {
-            const item = displayItems[virtualRow.index];
+            const item = visibleItems[virtualRow.index];
             const content = (() => {
               if (item.role === "tool-group") {
                 return <TermToolGroup tools={item.tools} />;
@@ -174,7 +234,7 @@ export default memo(function TerminalView(props: SessionViewProps) {
                 case "user":
                   return <div className="tv-user"><span className="tv-user-prompt">{"\u276F"}</span>{msg.text}</div>;
                 case "assistant":
-                  return <pre className="tv-assistant">{msg.text}</pre>;
+                  return <AssistantText text={msg.text} />;
                 case "tool":
                   return <TermToolLine tool={msg.tool} input={msg.input} output={msg.output} success={msg.success} />;
                 case "permission":
@@ -184,7 +244,7 @@ export default memo(function TerminalView(props: SessionViewProps) {
                 case "thinking":
                   if (hideThinking) {
                     if (msg.ended) return null;
-                    return <div className="tv-activity"><span className="tv-activity-dot" /><span className="tv-activity-label">Thinking...</span></div>;
+                    return <div className="tv-activity"><span className="tv-activity-sigil">{"\u2026"}</span><span className="tv-activity-label">Thinking...</span></div>;
                   }
                   return <TermThinkingLine text={msg.text} ended={msg.ended} />;
                 case "result":
@@ -225,7 +285,7 @@ export default memo(function TerminalView(props: SessionViewProps) {
         )}
         {thinkingIdRef.current && hideThinking && (
           <div className="tv-line">
-            <div className="tv-activity"><span className="tv-activity-dot" /><span className="tv-activity-label">Thinking...</span></div>
+            <div className="tv-activity"><span className="tv-activity-sigil">{"\u2026"}</span><span className="tv-activity-label">Thinking...</span></div>
           </div>
         )}
         {/* Live streaming outside virtualizer */}
@@ -295,14 +355,14 @@ export default memo(function TerminalView(props: SessionViewProps) {
           </>
         )}
         <span className="tv-bottom-spacer" />
-        <button className="tv-bottom-btn" title="Attach files" onClick={handleAttachClick}>+</button>
+        <button className="tv-bottom-btn" title="Attach files" onClick={handleAttachClick}><IconPlus size={12} /></button>
         <button
           className={`tv-bottom-btn tv-bottom-sidebar-toggle${sidebarOpen ? " active" : ""}`}
           title={sidebarOpen ? "Hide sidebar (Ctrl+B)" : "Show sidebar (Ctrl+B)"}
           aria-label="Toggle right sidebar"
           onClick={() => setSidebarOpen(prev => !prev)}
         >
-          &#9776;
+          <IconSidebar size={12} />
         </button>
       </div>
       {isDragging && (

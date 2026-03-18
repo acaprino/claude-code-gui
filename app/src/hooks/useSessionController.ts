@@ -261,6 +261,15 @@ export function useSessionController(props: SessionControllerProps): SessionCont
           return prev;
         });
       } else if (event.type === "permission") {
+        // In bypass mode, auto-approve any permission the SDK still emits
+        if (permMode === "bypassPermissions") {
+          respondPermission(tabId, true).catch(() => {});
+          setMessages(prev => [...prev, {
+            id: nextId(), role: "permission", tool: event.tool, description: event.description,
+            suggestions: event.suggestions, timestamp: Date.now(), resolved: true, allowed: true,
+          }]);
+          return;
+        }
         setMessages(prev => [...prev, {
           id: nextId(), role: "permission", tool: event.tool, description: event.description,
           suggestions: event.suggestions, timestamp: Date.now(),

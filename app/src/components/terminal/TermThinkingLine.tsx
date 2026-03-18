@@ -26,7 +26,7 @@ export default memo(function TermThinkingLine({ text, ended }: Props) {
   return (
     <div className={`tv-thinking${ended ? " tv-thinking--ended" : ""}`}>
       <span className="tv-thinking-header" onClick={() => setExpanded(!expanded)}>
-        {!ended && <span className="tv-thinking-dot" />}
+        {!ended && <span className="tv-thinking-sigil">{"\u2026"}</span>}
         <span className="tv-thinking-tag">[thinking]</span>
         <span className="tv-thinking-count">{lineCount} line{lineCount !== 1 ? "s" : ""}</span>
         {!ended && elapsed > 0 && <span className="tv-thinking-elapsed">{elapsed}s</span>}

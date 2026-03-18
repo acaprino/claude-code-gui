@@ -8,7 +8,7 @@ interface Props {
 
 const VALID_STATUSES = new Set<AgentTask["status"]>(["running", "completed", "failed", "stopped"]);
 
-const STATUS_ICON: Record<AgentTask["status"], string> = {
+const STATUS_LABEL: Record<AgentTask["status"], string> = {
   running: "\u25B6",
   completed: "\u2714",
   failed: "\u2718",
@@ -27,7 +27,7 @@ export default memo(function AgentTreePanel({ tasks }: Props) {
     <div className="agent-tree-panel">
       {running.length > 0 && (
         <div className="agent-tree-section">
-          <div className="agent-tree-section-label">Running ({running.length})</div>
+          <div className="agent-tree-section-label">Active ({running.length})</div>
           {running.map(task => (
             <AgentTaskRow key={task.taskId} task={task} />
           ))}
@@ -35,7 +35,7 @@ export default memo(function AgentTreePanel({ tasks }: Props) {
       )}
       {finished.length > 0 && (
         <div className="agent-tree-section">
-          <div className="agent-tree-section-label">Finished ({finished.length})</div>
+          <div className="agent-tree-section-label">Done ({finished.length})</div>
           {finished.map(task => (
             <AgentTaskRow key={task.taskId} task={task} />
           ))}
@@ -45,31 +45,43 @@ export default memo(function AgentTreePanel({ tasks }: Props) {
   );
 });
 
+/** Extract a readable agent name from taskType (e.g. "general-purpose" -> "General Purpose") */
+function formatAgentName(task: AgentTask): string {
+  if (task.taskType) {
+    return task.taskType
+      .replace(/[-_]/g, " ")
+      .replace(/\b\w/g, c => c.toUpperCase());
+  }
+  // Fallback: use first ~30 chars of description
+  const desc = task.description || "Agent";
+  return desc.length > 30 ? desc.slice(0, 30) + "\u2026" : desc;
+}
+
 const AgentTaskRow = memo(function AgentTaskRow({ task }: { task: AgentTask }) {
   const isRunning = task.status === "running";
   const safeStatus = VALID_STATUSES.has(task.status) ? task.status : "running";
+  const name = formatAgentName(task);
+
   return (
     <div className={`agent-task agent-task--${safeStatus}`}>
       <div className="agent-task-header">
-        <span className="agent-task-icon">{STATUS_ICON[safeStatus]}</span>
-        <span className="agent-task-name" title={task.description}>
-          {task.taskType || task.description}
-        </span>
+        <span className="agent-task-icon">{STATUS_LABEL[safeStatus]}</span>
+        <span className="agent-task-name" title={task.description}>{name}</span>
+        {isRunning && task.lastToolName && (
+          <span className="agent-task-tool">{task.lastToolName}</span>
+        )}
       </div>
       {task.description && task.taskType && (
         <div className="agent-task-desc">{task.description}</div>
       )}
-      <div className="agent-task-stats">
-        {task.toolUses > 0 && <span>{task.toolUses} tools</span>}
-        {task.totalTokens > 0 && <span>{fmtTokens(task.totalTokens)} tok</span>}
-        {task.durationMs > 0 && <span>{fmtDuration(task.durationMs)}</span>}
-      </div>
-      {isRunning && task.lastToolName && (
-        <div className="agent-task-activity">{task.lastToolName}...</div>
-      )}
       {task.summary && (
         <div className="agent-task-summary">{task.summary}</div>
       )}
+      <div className="agent-task-stats">
+        {task.toolUses > 0 && <span key="tools">{task.toolUses} tools</span>}
+        {task.totalTokens > 0 && <span key="tok">{fmtTokens(task.totalTokens)} tok</span>}
+        {task.durationMs > 0 && <span key="dur">{fmtDuration(task.durationMs)}</span>}
+      </div>
     </div>
   );
 });

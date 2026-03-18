@@ -51,13 +51,9 @@
   padding: var(--space-1) 0;
 }
 
-.tv-activity-dot {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--accent);
-  animation: tv-breathe 3s ease-in-out infinite;
+.tv-activity-sigil {
+  color: var(--overlay0);
+  font-weight: 500;
   flex-shrink: 0;
 }
 
@@ -102,6 +98,24 @@
   font-family: inherit;
   font-size: inherit;
   line-height: inherit;
+}
+
+.tv-assistant strong {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.tv-assistant em {
+  font-style: italic;
+  color: var(--text);
+}
+
+.tv-inline-code {
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: inherit;
+  font-family: inherit;
 }
 
 .tv-assistant--streaming::after {
@@ -281,13 +295,9 @@
 
 .tv-thinking-header:hover { opacity: 0.7; }
 
-.tv-thinking-dot {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--accent);
-  animation: tv-breathe 3s ease-in-out infinite;
+.tv-thinking-sigil {
+  color: var(--overlay0);
+  font-weight: 500;
   flex-shrink: 0;
 }
 
@@ -438,6 +448,4 @@
 /* ── Reduced motion ──────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   .tv-assistant--streaming::after { animation: none; opacity: 1; }
-  .tv-activity-dot,
-  .tv-thinking-dot { animation: none; opacity: 0.7; }
 }
