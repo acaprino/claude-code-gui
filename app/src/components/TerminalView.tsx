@@ -11,7 +11,6 @@ import TermToolLine from "./terminal/TermToolLine";
 import TermToolGroup from "./terminal/TermToolGroup";
 import TermPermPrompt from "./terminal/TermPermPrompt";
 import TermThinkingLine from "./terminal/TermThinkingLine";
-import TermResultLine from "./terminal/TermResultLine";
 import TermErrorLine from "./terminal/TermErrorLine";
 import "./TerminalView.css";
 
@@ -26,13 +25,14 @@ const ElapsedTimer = memo(function ElapsedTimer({ startTime }: { startTime: numb
   return <span className="tv-elapsed">{elapsed}s</span>;
 });
 
-/** Activity spinner — shows pulsing dot + label when agent is working */
+/** Activity spinner — shows breathing dot + label when agent is working */
 const ActivitySpinner = memo(function ActivitySpinner({ label }: { label: string }) {
+  const [startTime] = useState(() => Date.now());
   return (
     <div className="tv-activity">
       <span className="tv-activity-dot" />
       <span className="tv-activity-label">{label}</span>
-      <ElapsedTimer startTime={Date.now()} />
+      <ElapsedTimer startTime={startTime} />
     </div>
   );
 });
@@ -101,7 +101,7 @@ export default memo(function TerminalView(props: SessionViewProps) {
   const virtualizer = useVirtualizer({
     count: displayItems.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => 24,
+    estimateSize: () => 44,
     overscan: 20,
     getItemKey: (index) => displayItems[index].id,
   });
@@ -131,6 +131,12 @@ export default memo(function TerminalView(props: SessionViewProps) {
     });
     return () => { unlisten.then(fn => fn()); };
   }, [isActive, setDroppedFiles, messagesEndRef]);
+
+  // Scroll to a message by ID (used by bookmark panel)
+  const handleScrollToMessage = useCallback((msgId: string) => {
+    const idx = displayItems.findIndex(item => item.id === msgId);
+    if (idx >= 0) virtualizer.scrollToIndex(idx, { align: "center" });
+  }, [displayItems, virtualizer]);
 
   // Click anywhere -> refocus textarea
   const handleClick = useCallback((e: React.MouseEvent) => {
@@ -182,7 +188,7 @@ export default memo(function TerminalView(props: SessionViewProps) {
                   }
                   return <TermThinkingLine text={msg.text} ended={msg.ended} />;
                 case "result":
-                  return <TermResultLine cost={msg.cost} inputTokens={msg.inputTokens} outputTokens={msg.outputTokens} cacheReadTokens={msg.cacheReadTokens} turns={msg.turns} durationMs={msg.durationMs} />;
+                  return null;
                 case "error":
                   return <TermErrorLine code={msg.code} message={msg.message} />;
                 case "status":
@@ -252,7 +258,7 @@ export default memo(function TerminalView(props: SessionViewProps) {
         <div ref={messagesEndRef} />
       </div>
       {sidebarOpen && (
-        <RightSidebar messages={deferredMessages} agentTasks={agentTasks} onScrollToMessage={() => {}} scrollContainerRef={scrollRef} />
+        <RightSidebar messages={deferredMessages} agentTasks={agentTasks} onScrollToMessage={handleScrollToMessage} scrollContainerRef={scrollRef} />
       )}
       </div>{/* end tv-main-row */}
       {/* Bottom bar */}
@@ -289,9 +295,9 @@ export default memo(function TerminalView(props: SessionViewProps) {
           </>
         )}
         <span className="tv-bottom-spacer" />
-        <button className="tv-bottom-attach" title="Attach files" onClick={handleAttachClick}>+</button>
+        <button className="tv-bottom-btn" title="Attach files" onClick={handleAttachClick}>+</button>
         <button
-          className={`tv-bottom-sidebar-toggle${sidebarOpen ? " active" : ""}`}
+          className={`tv-bottom-btn tv-bottom-sidebar-toggle${sidebarOpen ? " active" : ""}`}
           title={sidebarOpen ? "Hide sidebar (Ctrl+B)" : "Show sidebar (Ctrl+B)"}
           aria-label="Toggle right sidebar"
           onClick={() => setSidebarOpen(prev => !prev)}

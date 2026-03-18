@@ -110,7 +110,7 @@
 .bookmark-panel {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: var(--space-0);
 }
 
 .bookmark-item {
@@ -158,7 +158,7 @@
 .minimap-panel {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-0);
   padding: var(--space-1);
 }
 
@@ -170,6 +170,7 @@
   transition: opacity 0.1s;
 }
 
+/* !important needed to override JS-applied inline opacity on minimap blocks */
 .minimap-block:hover { opacity: 1 !important; }
 
 /* ── Sublime-style Minimap (always-visible strip) ────────────── */
@@ -219,7 +220,7 @@
 .thinking-history-panel {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-0);
 }
 
 .thinking-entry {
@@ -298,13 +299,8 @@
 }
 
 .todo-pending .todo-check { color: var(--text-dim); }
-.todo-in_progress .todo-check { color: var(--accent); animation: todo-pulse 1.5s ease-in-out infinite; }
+.todo-in_progress .todo-check { color: var(--accent); }
 .todo-completed .todo-check { color: var(--green); }
-
-@keyframes todo-pulse {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 1; }
-}
 
 .todo-title {
   flex: 1;
@@ -385,7 +381,6 @@
 
 .agent-task--running .agent-task-icon {
   color: var(--accent);
-  animation: todo-pulse 1.5s ease-in-out infinite;
 }
 
 .agent-task--completed .agent-task-icon { color: var(--green); }

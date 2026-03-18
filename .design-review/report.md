@@ -1,259 +1,223 @@
-# Design & Performance Review -- 2026-03-16
+# Design Review -- 2026-03-18
 
-Diff mode audit - 8 files - ChatView, ChatInput, CommandMenu, SettingsModal, App.tsx, types.ts, MessageBubble
-
-## Product Brief Context
-
-Windows-only Tauri 2 desktop app for Claude Code Agent SDK sessions. Terminal-style dark aesthetic (Catppuccin Mocha default). Target: developers using Claude Code.
+Diff mode review -- 2 CSS files, 2 TSX files changed (TerminalView + RightSidebar)
 
 ## Scores
 
 | Category | Score |
 |----------|-------|
-| UX Quality | 7/10 |
+| UX Consistency | 6/10 |
 | Layout System | 8/10 |
-| CSS Architecture | 8/10 |
+| CSS Architecture | 7/10 |
 | Visual Polish & Motion | 6/10 |
 | Accessibility | 4/10 |
-| Typography | 6/10 |
-| React Performance | 6/10 |
-| **Overall** | **6.5/10** |
+| Typography | 7/10 |
+| **Overall** | **6/10** |
 
-Critical: 3 | High: 8 | Medium: 14 | Low: 10
+Critical: 1 | High: 4 | Medium: 8 | Low: 7
 
 ## Files Audited
 
-- `ChatView.tsx`, `ChatView.css`, `ChatInput.tsx`, `ChatInput.css`
-- `CommandMenu.tsx`, `SettingsModal.tsx`, `App.tsx`, `types.ts`
-- `MessageBubble.tsx`, `RightSidebar.css`
+- `app/src/components/TerminalView.tsx`
+- `app/src/components/TerminalView.css`
+- `app/src/components/chat/RightSidebar.tsx`
+- `app/src/components/chat/RightSidebar.css`
 
 ---
 
-## Critical Issues
+## Critical & High Issues
 
-### React Performance
+### Component Design
 
-#### `ChatView.tsx:129-138` -- Streaming chunks trigger O(n) scan + full re-render
+#### `TerminalView.tsx:35` -- ElapsedTimer receives `Date.now()` inline, defeating memo
 - **Severity**: Critical
-- **Issue**: Every streaming chunk calls setMessages with `prev.findIndex(m => m.id === id)` (O(n) scan) then spreads the entire array. During long conversations with hundreds of messages, each chunk arriving every 50-100ms does O(n) work AND triggers a full re-render of every message.
-- **Fix**: Use an accumulation ref for streaming text and only commit to React state on a throttled basis (requestAnimationFrame or 100ms debounce). The streaming message is always the last element -- maintain an index ref to eliminate findIndex.
+- **Issue**: `<ElapsedTimer startTime={Date.now()} />` inside ActivitySpinner creates a new prop value on every render, causing unmount/remount and resetting the elapsed counter to 0 on parent re-renders.
+- **Fix**: Capture start time in a `useState` initializer inside ActivitySpinner:
+  ```tsx
+  const ActivitySpinner = memo(function ActivitySpinner({ label }: { label: string }) {
+    const [startTime] = useState(() => Date.now());
+    return (
+      <div className="tv-activity">
+        <span className="tv-activity-dot" />
+        <span className="tv-activity-label">{label}</span>
+        <ElapsedTimer startTime={startTime} />
+      </div>
+    );
+  });
+  ```
 - [ ] Fixed
 
-#### `ChatView.tsx:170-184` -- toolResult creates reversed array copy
-- **Severity**: Critical
-- **Issue**: `[...prev].reverse().findIndex()` copies the entire messages array on every tool result event. Always returns a new array reference, causing a re-render of all children.
-- **Fix**: Iterate backward with a simple for-loop: `for (let i = prev.length - 1; i >= 0; i--)`. Also guard the result handler's `prev.map()` against unnecessary iteration when no thinking messages need updating.
+### UX Consistency
+
+#### `TerminalView.tsx:104` -- Virtualizer estimateSize too low for new typography
+- **Severity**: High
+- **Issue**: `estimateSize: 24` but at 13px/1.5 line-height + padding, single lines are ~24px while multi-line items (assistant text, tool output, permissions) are much taller. Causes layout jumps during fast scrolling. ChatView uses `estimateSize: 60`.
+- **Fix**: Increase `estimateSize` to `40` or `48`.
 - [ ] Fixed
 
-#### `ChatView.tsx:470,496,509,527` -- Inline closures break React.memo
-- **Severity**: Critical
-- **Issue**: Four ChatInput instances each receive `onDroppedFilesConsumed={() => setDroppedFiles([])}` -- a new closure on every render. Since ChatInput is memo'd, this breaks memoization. PermissionCard also gets an inline closure per permission message.
-- **Fix**: Hoist to `useCallback`: `const handleDroppedFilesConsumed = useCallback(() => setDroppedFiles([]), [])`. For PermissionCard, pass msg.id as a prop and let it call a stable callback.
+#### `TerminalView.tsx:255` -- onScrollToMessage is a no-op, bookmarks are broken
+- **Severity**: High
+- **Issue**: `onScrollToMessage={() => {}}` makes BookmarkPanel clicks do nothing. Users see clickable bookmarks that have no effect.
+- **Fix**: Implement scroll handler using `virtualizer.scrollToIndex`:
+  ```tsx
+  const handleScrollToMessage = useCallback((msgId: string) => {
+    const idx = displayItems.findIndex(item => item.id === msgId);
+    if (idx >= 0) virtualizer.scrollToIndex(idx, { align: "center" });
+  }, [displayItems, virtualizer]);
+  ```
 - [ ] Fixed
 
----
+### Motion Design
 
-## High Issues
+#### `TerminalView.css:59-67` -- Activity dots fully static, no running-state feedback
+- **Severity**: High
+- **Issue**: All infinite animations removed including the activity dot on ActivitySpinner. A static dot next to "Working..." gives no visual indication the system is running vs. frozen. The user complaint was about "blinking lights that never stop" in the sidebar -- the main activity dot should retain subtle animation.
+- **Fix**: Add a slow, opacity-only breathe animation on `.tv-activity-dot` and `.tv-thinking-dot` only. Keep everything else static:
+  ```css
+  @keyframes tv-breathe {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 0.9; }
+  }
+  .tv-activity-dot { animation: tv-breathe 3s ease-in-out infinite; }
+  .tv-thinking-dot { animation: tv-breathe 3s ease-in-out infinite; }
+  ```
+- [ ] Fixed
 
 ### Accessibility
 
-#### `ChatView.tsx` -- Missing ARIA landmarks and live regions
+#### `RightSidebar.tsx:59-66` -- Sidebar tab buttons lack ARIA semantics
 - **Severity**: High
-- **Issue**: Chat message area has no `role="log"` or `aria-live`. Screen readers won't announce new messages. User, assistant, tool, and error messages are undifferentiated divs.
-- **Fix**: Add `role="log" aria-live="polite" aria-label="Conversation"` to `.chat-messages`. Add `role="status"` to error messages.
-- [ ] Fixed
-
-#### `ChatView.tsx` -- Permission buttons lack accessible labels
-- **Severity**: High
-- **Issue**: The Y/session/n buttons have no aria-label. Hit target well under 24px (WCAG 2.5.8 violation). Padding `0 6px` with font-size 10px.
-- **Fix**: Add aria-labels: "Allow tool execution", "Allow for session", "Deny tool execution". Add `min-height: 24px` to `.perm-btn`.
-- [ ] Fixed
-
-#### `CommandMenu.tsx` -- Missing combobox ARIA pattern
-- **Severity**: High (accessibility)
-- **Issue**: No `role="listbox"`, no `aria-activedescendant`, no `aria-selected` on items. Uses document-level keydown listeners that can conflict.
-- **Fix**: Add `role="listbox"` to menu, `role="option"` + `aria-selected` to items. Connect textarea with `aria-controls` and `aria-activedescendant`.
-- [ ] Fixed
-
-### UX
-
-#### `ChatView.tsx` -- "Starting agent..." near-invisible, no error recovery
-- **Severity**: High
-- **Issue**: Idle state shows a dim status message (opacity 0.35, 10px) that is near-invisible. No progress indicator, no timeout, no error recovery if spawn fails silently. Violates Doherty threshold.
-- **Fix**: Use a visible pulsing indicator. Add 10s timeout with retry/diagnostic message. Increase to text-sm and opacity 0.6+.
-- [ ] Fixed
-
-#### `ChatView.tsx` -- ChatInput rendered 4 times with near-identical props
-- **Severity**: High
-- **Issue**: 4 separate ChatInput instances with only disabled/processing differences. Prop duplication and divergence risk.
-- **Fix**: Extract a single `renderInput()` function or compute props object once. Use CSS (position:sticky for terminal, fixed-bottom for chat) to handle layout.
-- [ ] Fixed
-
-### CSS
-
-#### `ChatView.css` -- No targeted prefers-reduced-motion
-- **Severity**: High
-- **Issue**: The global rule in App.css forces infinite animations to `0.01ms` which makes the blink cursor flash once and die. Each animation needs a sensible static fallback.
-- **Fix**: Add targeted overrides: streaming cursor -> static block, pending status -> static yellow, msg-flash -> skip entirely.
-- [ ] Fixed
-
-#### `ChatView.css` / `ChatInput.css` -- Missing transitions on state changes
-- **Severity**: High
-- **Issue**: `.thinking-block.ended` snaps to opacity 0.5 with no transition. `.chat-input-container.processing .chat-input-textarea` snaps from 1.0 to 0.4. Both feel like rendering bugs.
-- **Fix**: Add `transition: opacity 0.3s ease-out` to `.thinking-block`. Add `transition: opacity 0.2s ease-out` to `.chat-input-textarea`.
-- [ ] Fixed
-
-### React Performance
-
-#### `ChatView.tsx:498,530` -- O(n) scan in render path
-- **Severity**: High
-- **Issue**: `messages.some(m => m.role === "permission" && !m.resolved)` evaluated on every render (twice). O(n) scan blocking rendering.
-- **Fix**: Maintain `unresolvedPermissionCount` state variable, increment on permission events, decrement on resolution. O(1).
+- **Issue**: Tab buttons use SVG icons with no text content. Missing `aria-label`, `role="tab"`, `aria-selected`. Screen readers announce empty buttons.
+- **Fix**: Add ARIA tabs pattern:
+  ```tsx
+  <div className="right-sidebar-tabs" role="tablist" aria-label="Sidebar panels">
+    {SIDEBAR_TABS.map((tab) => (
+      <button
+        key={tab.id}
+        role="tab"
+        aria-selected={activeTab === tab.id}
+        aria-label={tab.title}
+        ...
+      >
+  ```
 - [ ] Fixed
 
 ---
 
 ## Medium Issues
 
-### React Performance
+### CSS Architecture
 
-#### `ChatView.tsx` -- Duplicated streaming finalization (4x)
-- **Issue**: Identical 7-line block in toolUse, inputRequired, thinking, result handlers.
-- **Fix**: Extract `finalizeStreaming()` closure inside the useEffect.
+#### `TerminalView.css:80-83` -- Dead `@keyframes tv-pulse` definition
+- **Severity**: Medium
+- **Issue**: `@keyframes tv-pulse` is defined but no longer referenced by any selector.
+- **Fix**: Delete the keyframe block. Replace with `tv-breathe` if adopting the subtle activity pulse.
 - [ ] Fixed
 
-#### `ChatView.tsx` -- Component complexity (11 useState + 10 useRef)
-- **Issue**: God component managing agent lifecycle, messages, drag-drop, sidebar, scroll, rate limits, tokens, commands.
-- **Fix**: Extract `useAgentLifecycle()`, `useDragDrop()`, `useAutoScroll()` hooks.
+#### `TerminalView.css:469-473` -- `prefers-reduced-motion` references non-existent animations
+- **Severity**: Medium
+- **Issue**: The reduced-motion block targets `.tv-tool-status.pending` and `.tv-thinking-spinner`, neither of which has animation anymore.
+- **Fix**: Update to target only elements that actually animate.
 - [ ] Fixed
 
-#### `RightSidebar` -- Re-renders on every streaming chunk
-- **Issue**: Receives entire messages array (new reference per chunk). All sidebar panels re-render during streaming.
-- **Fix**: Use `useDeferredValue(messages)` before passing to RightSidebar, or memoize derived data.
+### Accessibility
+
+#### `TerminalView.css:167-172` -- Color-only status indicators (WCAG 1.4.1)
+- **Severity**: Medium
+- **Issue**: Tool status conveyed purely by color (accent=pending, green=ok, red=fail). Accent blue and green are hard to distinguish in deuteranopia.
+- **Fix**: Verify TSX renders distinct symbols alongside color.
+- [ ] Verified
+
+#### `RightSidebar.tsx:56` -- Resize handle lacks keyboard accessibility
+- **Severity**: Medium
+- **Issue**: Resize handle uses only `onMouseDown`. No `tabIndex`, `role`, or keyboard handler.
+- **Fix**: Add `role="separator"`, `tabIndex={0}`, `aria-label="Resize sidebar"`, and arrow key handler.
 - [ ] Fixed
 
-#### `MessageBubble.tsx` -- Eager import of react-syntax-highlighter (~200KB)
-- **Issue**: Prism + all languages imported at top level even if no code blocks shown.
-- **Fix**: Use `PrismLight` with only needed languages, or lazy-load CodeBlock component.
+### Micro-interactions
+
+#### `TerminalView.css:423-466` -- Bottom bar buttons missing transitions and active state
+- **Severity**: Medium
+- **Issue**: Hover styles snap instantly (no transition). No `:active` press feedback on 18x18px targets.
+- **Fix**: Add `transition: color 0.15s ease-out, border-color 0.15s ease-out` and `:active { transform: scale(0.92); }`. Consolidate duplicate button styles into shared `.tv-bottom-btn`.
 - [ ] Fixed
 
-### Layout
+### Spacing
 
-#### `ChatView.tsx:442` -- Inline font-family violates CLAUDE.md constraint
-- **Issue**: `style={{ fontFamily: var(--font-chat), fontSize: var(--text-chat) }}` -- component-level font-family declaration.
-- **Fix**: Move to CSS rule on `.chat-view` with fallback: `font-size: var(--text-chat, var(--text-base))`. Remove inline style.
+#### `TerminalView.css` -- Raw px values instead of spacing tokens
+- **Severity**: Medium
+- **Issue**: Multiple elements use raw `1px` or `2px` padding/margin where `var(--space-0)` (2px) exists.
+- **Fix**: Replace `2px` values with `var(--space-0)`.
 - [ ] Fixed
 
-#### `ChatView.css` -- `--space-5` token doesn't exist
-- **Issue**: `padding-left: var(--space-5)` on `.msg-bubble ul/ol` references undefined token. Falls back to browser default.
-- **Fix**: Replace with `var(--space-4)` (16px).
+#### `TerminalView.css:6` -- Off-grid indent (20px)
+- **Severity**: Medium
+- **Issue**: `--tv-indent: 20px` breaks the 4px base-unit grid. Scale has `--space-4` (16px) and `--space-6` (24px).
+- **Fix**: Use `var(--space-4)` (16px) or `var(--space-6)` (24px).
 - [ ] Fixed
 
-#### `ChatView.css` -- Bottom bar font-size hardcoded 9px (3 places)
-- **Issue**: Outside design token scale. Below minimum readable size on HiDPI.
-- **Fix**: Use `var(--text-xs)` or define `--text-2xs: 9px` token.
-- [ ] Fixed
-
-#### `ChatView.css` -- Effort level in bottom bar nearly invisible
-- **Issue**: opacity 0.6 on text-dim at 9px. Users who accidentally set low effort may not notice.
-- **Fix**: Remove opacity reduction. Consider color coding: green=high, yellow=medium, red=low.
-- [ ] Fixed
-
-#### `ChatView.css` -- Inconsistent line-heights (1.4, 1.5, 1.6)
-- **Issue**: `.chat-msg` is 1.4, textarea is 1.6, thinking-text is 1.5. Three values in one view.
-- **Fix**: Standardize: 1.5 for body text, 1.4 for compact chrome.
-- [ ] Fixed
-
-#### `ChatInput.css` -- textarea max-height uses --text-base instead of --text-chat
-- **Issue**: Chat view uses `--text-chat` but max-height calc references `--text-base`.
-- **Fix**: Use `var(--text-chat, var(--text-base))` in the calc.
-- [ ] Fixed
-
-### Visual Polish
-
-#### `ChatView.css` -- No message entrance animation
-- **Issue**: Messages pop into DOM instantly. Biggest missed opportunity for feel.
-- **Fix**: Use `@starting-style` (Chromium/Tauri supported): `.chat-msg { transition: opacity 0.2s ease-out, transform 0.2s ease-out; } @starting-style { .chat-msg { opacity: 0; transform: translateY(6px); } }`
-- [ ] Fixed
-
-#### `ChatView.css` -- 11 distinct opacity levels with no system
-- **Issue**: Values scattered: 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.6, 0.7, 0.8.
-- **Fix**: Consolidate to 4-5 tiers: ghost (0.2), muted (0.4), subdued (0.6), soft (0.8), full (1.0).
-- [ ] Fixed
-
-#### `ChatView.css` -- `.perm-btn` missing `:focus-visible`
-- **Issue**: Permission buttons (critical actions) have no focus indicator for keyboard nav.
-- **Fix**: Add `.perm-btn:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; }`.
-- [ ] Fixed
-
-#### `ChatView.css` -- Error messages lack visual weight
-- **Issue**: `.chat-msg--error` is just red text with no background or border treatment. Tool output gets green border, code blocks get overlay0 border.
-- **Fix**: Add `border-left: 2px solid color-mix(in srgb, var(--red) 30%, transparent); padding-left: var(--space-2);`
-- [ ] Fixed
-
-### UX
-
-#### `ChatView.tsx` -- Input never appears if agent doesn't emit inputRequired
-- **Issue**: On resume/fork, if agent is mid-turn, no input shows. User has no way to interact.
-- **Fix**: After successful spawn, set inputState to "awaiting_input" as default post-launch state.
-- [ ] Fixed
-
-#### `ChatInput.tsx` -- Processing state has no context text
-- **Issue**: Dimmed empty textarea with no indication of what's happening or how to interrupt.
-- **Fix**: Show placeholder: "Claude is working... (Ctrl+C to interrupt)".
-- [ ] Fixed
-
-#### `SettingsModal.tsx` -- Font sections visually identical, confusing
-- **Issue**: Terminal Font and Chat Font have same preview text, unclear which controls which.
-- **Fix**: Add descriptions: "Used in terminal/xterm sessions" and "Used in chat message views".
+#### `RightSidebar.css:173` -- `!important` on `.minimap-block:hover`
+- **Severity**: Medium
+- **Issue**: `opacity: 1 !important` overrides inline styles. Undocumented.
+- **Fix**: Add comment explaining override, or refactor to CSS classes.
 - [ ] Fixed
 
 ---
 
 ## Low Issues
 
-- Command menu appears/disappears instantly -- add slide-up animation
-- Drop overlay has no fade entrance animation
-- Command-item hover transition (0.05s) inconsistent with rest (0.1s)
-- RightSidebar border-radius inconsistent with chat area (var(--radius-sm) vs 0)
-- RightSidebar snaps open/closed with no transition
-- Status messages (.chat-msg--status) nearly invisible at opacity 0.35
-- Bottom bar 2px padding creates 13-14px bar height (below 24px minimum)
-- Attach/send buttons 28px, off 8px grid
-- msg-highlight outline may be clipped by overflow:hidden
-- Ctrl+C kills entire session rather than interrupting current turn
+#### `TerminalView.tsx:162-194` -- Large inline switch in virtualizer render
+- Extract to standalone `renderDisplayItem` function.
+- [ ] Fixed
+
+#### `TerminalView.css:428` -- Bottom bar buttons off-grid (18px)
+- Use 20px or 16px from token scale.
+- [ ] Fixed
+
+#### `TerminalView.css:32` -- 3px scrollbar thin at 13px font scale
+- Consider 4-5px, or add `:hover` width expansion.
+- [ ] Fixed
+
+#### `TerminalView.css` -- Tool output max-height clips mid-line
+- `150px` at 19.5px line-height = 7.7 lines. Use `156px` for clean 8 lines.
+- [ ] Fixed
+
+#### `TerminalView.css:45-49` -- `.tv-line--status` dead CSS
+- Remove unused class.
+- [ ] Fixed
+
+#### `RightSidebar.tsx:17-21` -- SVG icons lack `aria-hidden="true"`
+- Add to all decorative SVGs.
+- [ ] Fixed
+
+#### `RightSidebar.css` -- Sidebar panel gaps inconsistent (1px, 2px)
+- Standardize to `var(--space-0)`.
+- [ ] Fixed
 
 ---
 
 ## What's Working Well
 
-- **Terminal aesthetic is cohesive**: border-radius: 0 everywhere, color-mix() for all opacity variants, prompt chevron prefix, collapsed tool cards
-- **Streaming text accumulation**: Raw text during streaming, markdown only after finalization -- avoids O(n^2) re-parsing
-- **StrictMode handling**: Deferred kill with pendingKillRef correctly prevents race conditions
-- **Callback refs pattern**: Prevents stale closures in long-lived useEffect
-- **color-mix() discipline**: Zero hardcoded rgba values, full theme compatibility
-- **Permission card UX**: Clear pending/resolved states with color-coded buttons
-- **Auto-scroll with near-bottom detection**: Doesn't force scroll when reading history
-- **Drag-drop with counter tracking**: Correctly handles nested element events
-- **Syntax highlighter theme caching**: Module-scope cache with MutationObserver invalidation
-- **SDK command deduplication**: LOCAL_NAMES set prevents duplicate menu entries
-- **Scroll listener passive: true**: Correct performance optimization
-- **Functional state updates**: Used consistently, avoiding stale state bugs
+- Excellent design token discipline -- all spacing, colors, radii use CSS custom properties
+- All color transparency uses `color-mix()` per project conventions, no hardcoded rgba
+- Good component decomposition -- message types delegated to focused sub-components
+- Font bump from 11px to 13px aligns with `--text-base` token value
+- Bottom bar correctly uses `--text-sm` for chrome hierarchy differentiation
+- Streaming cursor blink correctly preserved with terminal-authentic `step-end` timing
+- `prefers-reduced-motion` media query present
+- No `will-change` used statically, per project convention
+- Right sidebar proportions well-calibrated (220px default, 150-400 range)
+- RightSidebar correctly shared between ChatView and TerminalView
 
 ---
 
 ## Action Plan
 
-1. [ ] **Throttle streaming state updates** via rAF batch (Critical perf)
-2. [ ] **Add ARIA landmarks**: `role="log" aria-live="polite"` on messages area (Critical a11y)
-3. [ ] **Hoist inline closures** to useCallback for ChatInput memo (Critical perf)
-4. [ ] **Extract `finalizeStreaming()` helper** -- eliminates 4x duplication (High)
-5. [ ] **Add targeted prefers-reduced-motion** overrides per animation (High)
-6. [ ] **Add transitions**: thinking-block collapse, textarea processing dim (High)
-7. [ ] **Move font to CSS rule** on `.chat-view` instead of inline style (Medium)
-8. [ ] **Fix `--space-5` reference** -- replace with `--space-4` (Medium)
-9. [ ] **Extract hooks**: useAgentLifecycle, useDragDrop, useAutoScroll (Medium)
-10. [ ] **Add message entrance animation** via @starting-style (Medium)
-11. [ ] **Add focus-visible** to permission buttons and interactive elements (Medium)
-12. [ ] **Use PrismLight** with selective language imports (Medium)
-13. [ ] **Defer RightSidebar** with useDeferredValue (Medium)
+1. [ ] **Fix ElapsedTimer Date.now() bug** -- Critical, causes timer resets
+2. [ ] **Add subtle breathe animation to activity/thinking dots** -- restores running-state feedback
+3. [ ] **Implement onScrollToMessage** -- currently broken bookmarks
+4. [ ] **Increase virtualizer estimateSize to 40-48** -- reduces scroll jank
+5. [ ] **Add ARIA tabs pattern to RightSidebar** -- accessibility gap
+6. [ ] **Clean up dead keyframes and stale reduced-motion rules** -- CSS hygiene
+7. [ ] **Add transitions/active states to bottom bar buttons** -- polish
+8. [ ] **Tokenize raw px values (2px -> space-0, 20px indent -> space-4)** -- consistency
