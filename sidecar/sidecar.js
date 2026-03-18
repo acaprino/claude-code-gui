@@ -80,6 +80,10 @@ function log(...args) {
   process.stderr.write(`[sidecar] ${args.join(" ")}\n`);
 }
 
+// ── Constants ───────────────────────────────────────────────────────
+
+const VALID_PERM_MODES = new Set(["plan", "acceptEdits", "bypassPermissions"]);
+
 // ── Command handlers ────────────────────────────────────────────────
 
 async function handleCreate(cmd) {
@@ -138,7 +142,6 @@ async function handleCreate(cmd) {
   }
 
   // Resolve permission mode from the new permMode string or legacy skipPerms boolean
-  const VALID_PERM_MODES = new Set(["plan", "acceptEdits", "bypassPermissions"]);
   const rawPermMode = permMode || (skipPerms ? "bypassPermissions" : null);
   const resolvedPermMode = rawPermMode && VALID_PERM_MODES.has(rawPermMode) ? rawPermMode : null;
 
