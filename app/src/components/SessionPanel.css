@@ -45,7 +45,7 @@
   border: none;
   color: var(--text-dim);
   cursor: pointer;
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
   padding: 0 var(--space-1);
   line-height: 1;
 }

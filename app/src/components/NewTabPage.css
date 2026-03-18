@@ -22,7 +22,7 @@
 }
 
 .error-title {
-  font-size: var(--text-md);
+  font-size: var(--text-base);
   font-weight: 500;
   color: var(--text);
 }
