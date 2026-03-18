@@ -307,6 +307,24 @@ fn validate_perm_mode(mode: &str) -> &str {
     }
 }
 
+/// Ensure `project_path` is a valid, existing directory — creating it if necessary.
+/// Rejects UNC paths and path traversal (`..` components).
+fn ensure_project_dir(project_path: &str) -> Result<(), String> {
+    if crate::projects::is_unc(project_path) {
+        return Err("UNC paths are not supported".to_string());
+    }
+    if project_path.contains("..") {
+        return Err("Path traversal is not allowed".to_string());
+    }
+    let dir = std::path::Path::new(project_path);
+    if !dir.is_dir() {
+        log_warn!("ensure_project_dir: creating missing directory: {project_path}");
+        std::fs::create_dir_all(dir)
+            .map_err(|e| format!("Failed to create project directory: {e}"))?;
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub fn spawn_agent(
     sidecar: State<'_, Arc<SidecarManager>>,
@@ -322,12 +340,7 @@ pub fn spawn_agent(
     if !sidecar.available() {
         return Err("Agent SDK not available (Node.js not found)".to_string());
     }
-    if crate::projects::is_unc(&project_path) {
-        return Err("UNC paths are not supported".to_string());
-    }
-    if !std::path::Path::new(&project_path).is_dir() {
-        return Err("Project path does not exist or is not a directory".to_string());
-    }
+    ensure_project_dir(&project_path)?;
     if system_prompt.len() > 100_000 {
         return Err(format!("System prompt too large (max 100000 bytes)"));
     }
@@ -392,12 +405,7 @@ pub fn agent_resume(
     if !sidecar.available() {
         return Err("Agent SDK not available".to_string());
     }
-    if crate::projects::is_unc(&project_path) {
-        return Err("UNC paths are not supported".to_string());
-    }
-    if !std::path::Path::new(&project_path).is_dir() {
-        return Err("Project path does not exist or is not a directory".to_string());
-    }
+    ensure_project_dir(&project_path)?;
     let perm_mode = validate_perm_mode(&perm_mode);
     log_info!("agent_resume: tab={tab_id}, session={session_id}");
     sidecar.register_channel(&tab_id, on_event);
@@ -428,12 +436,7 @@ pub fn agent_fork(
     if !sidecar.available() {
         return Err("Agent SDK not available".to_string());
     }
-    if crate::projects::is_unc(&project_path) {
-        return Err("UNC paths are not supported".to_string());
-    }
-    if !std::path::Path::new(&project_path).is_dir() {
-        return Err("Project path does not exist or is not a directory".to_string());
-    }
+    ensure_project_dir(&project_path)?;
     let perm_mode = validate_perm_mode(&perm_mode);
     log_info!("agent_fork: tab={tab_id}, session={session_id}");
     sidecar.register_channel(&tab_id, on_event);
