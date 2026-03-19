@@ -545,6 +545,7 @@ pub fn agent_set_perm_mode(
     tab_id: String,
     perm_mode: String,
 ) -> Result<(), String> {
+    let perm_mode = validate_perm_mode(&perm_mode);
     sidecar.send_command(&serde_json::json!({
         "cmd": "set_perm_mode",
         "tabId": tab_id,
