@@ -160,50 +160,64 @@ async function handleCreate(cmd) {
   // For acceptEdits, auto-allow file-editing tools and prompt for the rest.
   // For plan/default, prompt for everything.
   options.canUseTool = async (toolName, input, opts) => {
-    // Bypass mode: auto-allow everything
-    if (permState.mode === "bypassPermissions") {
-      return { behavior: "allow" };
-    }
-
-    // AcceptEdits mode: auto-allow file-editing tools
-    if (permState.mode === "acceptEdits" && ACCEPT_EDITS_TOOLS.has(toolName)) {
-      return { behavior: "allow" };
-    }
-
-    const description = toolName === "Bash"
-      ? (input.command || "").slice(0, 200)
-      : toolName === "Edit" || toolName === "Write" || toolName === "Read"
-        ? (input.file_path || "")
-        : JSON.stringify(input).slice(0, 200);
-
-    emit({
-      evt: "permission",
-      tabId,
-      tool: toolName,
-      description: String(description),
-      toolUseId: opts.toolUseID,
-      permissionSuggestions: opts.suggestions || [],
-    });
-
-    // Wait for permission response from frontend (timeout after 5 minutes)
-    const result = await new Promise((resolve) => {
-      const session = sessions.get(tabId);
-      if (!session) {
-        resolve({ behavior: "deny", message: "Session not found" });
-        return;
+    try {
+      // Bypass mode: auto-allow everything
+      // updatedInput is required by the SDK's internal Zod schema — omitting it causes ZodError
+      // which silently denies ALL tools (the SDK catches the error and treats it as deny)
+      if (permState.mode === "bypassPermissions") {
+        return { behavior: "allow", updatedInput: {} };
       }
-      const timeout = setTimeout(() => {
-        if (session.pendingPermission?.toolUseId === opts.toolUseID) {
-          session.pendingPermission = null;
-          resolve({ behavior: "deny", message: "Permission request timed out" });
-        }
-      }, PERMISSION_TIMEOUT_MS);
-      session.pendingPermission = {
-        resolve: (val) => { clearTimeout(timeout); resolve(val); },
+
+      // AcceptEdits mode: auto-allow file-editing tools
+      if (permState.mode === "acceptEdits" && ACCEPT_EDITS_TOOLS.has(toolName)) {
+        return { behavior: "allow", updatedInput: {} };
+      }
+
+      let description;
+      try {
+        description = toolName === "Bash"
+          ? (input.command || "").slice(0, 200)
+          : toolName === "Edit" || toolName === "Write" || toolName === "Read"
+            ? (input.file_path || "")
+            : JSON.stringify(input).slice(0, 200);
+      } catch {
+        description = "(unserializable input)";
+      }
+
+      emit({
+        evt: "permission",
+        tabId,
+        tool: toolName,
+        description: String(description),
         toolUseId: opts.toolUseID,
-      };
-    });
-    return result;
+        permissionSuggestions: opts.suggestions || [],
+      });
+
+      // Wait for permission response from frontend (timeout after 5 minutes)
+      const result = await new Promise((resolve) => {
+        const session = sessions.get(tabId);
+        if (!session) {
+          resolve({ behavior: "deny", message: "Session not found" });
+          return;
+        }
+        const timeout = setTimeout(() => {
+          if (session.pendingPermission?.toolUseId === opts.toolUseID) {
+            session.pendingPermission = null;
+            resolve({ behavior: "deny", message: "Permission request timed out" });
+          }
+        }, PERMISSION_TIMEOUT_MS);
+        session.pendingPermission = {
+          resolve: (val) => { clearTimeout(timeout); resolve(val); },
+          toolUseId: opts.toolUseID,
+        };
+      });
+      return result;
+    } catch (err) {
+      log(`canUseTool error for ${toolName}:`, err.message);
+      emit({ evt: "error", tabId, code: "permission_error", message: err.message });
+      // Fail closed: errors in the permission gate must deny, not allow
+      return { behavior: "deny", message: `Internal error: ${err.message}` };
+    }
   };
 
   if (allowedTools) {
@@ -223,12 +237,12 @@ async function handleCreate(cmd) {
         matcher: /^AskUserQuestion$/,
         hooks: [async (event) => {
           const session = sessions.get(tabId);
-          if (!session) return { behavior: "allow" };
+          if (!session) return { behavior: "deny", message: "Session not found" };
 
           // Extract questions from the tool input
           const questions = event.input?.questions;
           if (!Array.isArray(questions) || questions.length === 0) {
-            return { behavior: "allow" };
+            return { behavior: "allow", updatedInput: {} };
           }
 
           // Emit ask_user event to frontend
@@ -599,8 +613,7 @@ function handlePermissionResponse(cmd) {
   session.pendingPermission = null;
 
   if (cmd.allow) {
-    // updatedInput is required by the SDK's internal Zod schema (ao6/iMz)
-    // even though the TypeScript type marks it optional — omitting it causes ZodError
+    // updatedInput is required by the SDK's internal Zod schema — omitting it causes ZodError
     const result = { behavior: "allow", updatedInput: {} };
     if (Array.isArray(cmd.updatedPermissions) && cmd.updatedPermissions.length > 0) {
       result.updatedPermissions = cmd.updatedPermissions;
