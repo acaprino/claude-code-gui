@@ -121,8 +121,7 @@ export interface Theme {
   uiFontSize?: number;
 }
 
-// Themes are loaded from individual JSON files in data/themes/
-export { THEMES } from "./data/themes";
+// Themes are loaded at runtime from the filesystem via load_themes command
 
 /** Shared tab label logic — used by TabBar and TabSidebar. */
 export function getTabLabel(tab: Tab): string {

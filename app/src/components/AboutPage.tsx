@@ -1,6 +1,6 @@
 import { memo, useState, useEffect, useMemo } from "react";
 import { getVersion } from "@tauri-apps/api/app";
-import { THEMES } from "../types";
+import { useThemes } from "../contexts/ThemesContext";
 import { Banner, Box, Sep } from "./GsdPrimitives";
 import AsciiLogo from "./AsciiLogo";
 import "./GsdLayout.css";
@@ -23,11 +23,10 @@ function buildAboutBox(version: string) {
   Display    React Chat UI`;
 }
 
-function buildStatusBox() {
-  const themeCount = THEMES.length;
+function buildStatusBox(themeCount: number) {
   return `  Tools     ✓ claude
   Models    ✓ sonnet  ✓ opus  ✓ haiku  ✓ 1M context
-  Themes    ${themeCount} dark themes available
+  Themes    ${themeCount} themes available
   Effort    high / medium / low
   Sort      alpha / last used / most used`;
 }
@@ -53,9 +52,10 @@ const SHORTCUTS_ACTIONS = `  F5            Create project
   Ctrl+U        Token usage`;
 
 function AboutPage({ tabId, onRequestClose, isActive }: AboutPageProps) {
+  const themes = useThemes();
   const [version, setVersion] = useState("...");
   const aboutBox = useMemo(() => buildAboutBox(version), [version]);
-  const statusBox = useMemo(() => buildStatusBox(), []);
+  const statusBox = useMemo(() => buildStatusBox(themes.length), [themes.length]);
 
   useEffect(() => {
     getVersion().then(setVersion).catch(() => setVersion("unknown"));

@@ -23,10 +23,14 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: https://asset.localhost"
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: https://asset.localhost",
+      "assetProtocol": {
+        "enable": true,
+        "scope": ["$TEMP/anvil_clipboard/**"]
+      }
     }
   },
   "bundle": {
-    "resources": ["data/prompts/*", "data/marketplace/plugins/**/*", "data/marketplace/.claude-plugin/marketplace.json"]
+    "resources": ["data/prompts/*", "data/themes/*", "data/marketplace/plugins/**/*", "data/marketplace/.claude-plugin/marketplace.json"]
   }
 }

@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { ProjectInfo, Settings, UsageData, SORT_ORDERS } from "../types";
 import { applyTheme } from "../themes";
+import { useThemes } from "../contexts/ThemesContext";
 
 function scanProjects(s: Settings): Promise<ProjectInfo[]> {
   return invoke<ProjectInfo[]>("scan_projects", {
@@ -13,6 +14,7 @@ function scanProjects(s: Settings): Promise<ProjectInfo[]> {
 }
 
 export function useProjects() {
+  const themes = useThemes();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [usage, setUsage] = useState<UsageData>({});
   const [projects, setProjects] = useState<ProjectInfo[]>([]);
@@ -62,11 +64,11 @@ export function useProjects() {
     return () => { unlisten.then((f) => f()); };
   }, []);
 
-  // Apply theme whenever theme_idx changes
+  // Apply theme whenever theme_idx or themes change
   const themeIdx = settings?.theme_idx ?? 1;
   useEffect(() => {
-    applyTheme(themeIdx);
-  }, [themeIdx]);
+    applyTheme(themes, themeIdx);
+  }, [themes, themeIdx]);
 
   const retry = useCallback(() => {
     setError(null);

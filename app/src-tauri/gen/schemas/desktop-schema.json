@@ -519,6 +519,12 @@
           "markdownDescription": "Allows loading settings"
         },
         {
+          "description": "Allows loading theme definitions from filesystem",
+          "type": "string",
+          "const": "allow-load-themes",
+          "markdownDescription": "Allows loading theme definitions from filesystem"
+        },
+        {
           "description": "Allows loading usage data",
           "type": "string",
           "const": "allow-load-usage",

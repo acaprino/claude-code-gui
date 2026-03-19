@@ -1,7 +1,8 @@
 import { memo, useState, useEffect, useRef, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Switch } from "radix-ui";
-import { Settings, THEMES, SORT_ORDERS } from "../../types";
+import { Settings, SORT_ORDERS } from "../../types";
+import { useThemes } from "../../contexts/ThemesContext";
 import SegmentedControl from "../SegmentedControl";
 import Modal from "../Modal";
 import "./SettingsModal.css";
@@ -47,6 +48,7 @@ interface SettingsModalProps {
 }
 
 export default memo(function SettingsModal({ settings, onClose, onUpdate }: SettingsModalProps) {
+  const THEMES = useThemes();
   const handleSortChange = useCallback((idx: number) => {
     onUpdate({ sort_idx: idx });
   }, [onUpdate]);

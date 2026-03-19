@@ -86,6 +86,11 @@ description = "Allows listing directory contents for folder tree browser"
 commands.allow = ["list_directory"]
 
 [[permission]]
+identifier = "allow-load-themes"
+description = "Allows loading theme definitions from filesystem"
+commands.allow = ["load_themes"]
+
+[[permission]]
 identifier = "allow-load-builtin-prompts"
 description = "Allows loading builtin system prompts"
 commands.allow = ["load_builtin_prompts"]

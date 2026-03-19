@@ -266,6 +266,13 @@ pub async fn list_directory(path: Option<String>) -> Result<Vec<DirEntry>, Strin
 }
 
 #[tauri::command]
+pub async fn load_themes() -> Result<Vec<crate::themes::Theme>, String> {
+    tokio::task::spawn_blocking(crate::themes::load_themes)
+        .await
+        .map_err(|e| format!("Task failed: {e}"))
+}
+
+#[tauri::command]
 pub async fn load_builtin_prompts() -> Result<Vec<crate::prompts::BuiltinPrompt>, String> {
     tokio::task::spawn_blocking(crate::prompts::load_builtin_prompts)
         .await

@@ -8,6 +8,7 @@ mod marketplace;
 mod projects;
 mod prompts;
 mod sidecar;
+mod themes;
 mod usage_stats;
 mod autocomplete;
 mod watcher;
@@ -151,6 +152,7 @@ fn main() {
             commands::refresh_commands,
             commands::read_external_file,
             commands::run_claude_command,
+            commands::load_themes,
             commands::get_marketplace_plugins,
             commands::set_marketplace_global,
             commands::write_text_file,

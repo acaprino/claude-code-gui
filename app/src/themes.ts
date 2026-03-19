@@ -1,8 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
-import { THEMES } from "./types";
+import type { Theme } from "./types";
 
-export function applyTheme(themeIdx: number): void {
-  const theme = THEMES[themeIdx] ?? THEMES[0];
+export function applyTheme(themes: Theme[], themeIdx: number): void {
+  const theme = themes[themeIdx] ?? themes[0];
+  if (!theme) return; // themes not loaded yet
   const c = theme.colors;
   const root = document.documentElement;
 
