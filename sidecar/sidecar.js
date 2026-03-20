@@ -1056,11 +1056,12 @@ rl.on("close", () => {
 });
 
 process.on("uncaughtException", (err) => {
-  log(`FATAL uncaughtException: ${err.message}\n${err.stack}`);
+  log(`uncaughtException: ${err.message}\n${err.stack}`);
   if (err.name === "ZodError" || err.message?.includes("Zod")) {
     log(`ZodError details: ${JSON.stringify(err.issues || err.errors || err, null, 2)}`);
   }
-  process.exit(1);
+  // Don't exit — allow sidecar to continue serving other sessions.
+  // Fatal errors (broken stdin/stdout) will naturally terminate via stream end.
 });
 
 process.on("unhandledRejection", (reason) => {

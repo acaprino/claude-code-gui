@@ -155,6 +155,8 @@ pub struct SidecarManager {
     _process: Mutex<Option<Child>>,
     /// Win32 Job Object — kills all child processes when closed.
     _job: Mutex<Option<JobHandle>>,
+    /// Cached node path for auto-restart.
+    node_path: Mutex<Option<String>>,
 }
 
 /// RAII wrapper for a Win32 Job Object handle.
@@ -176,12 +178,14 @@ impl SidecarManager {
             available: Arc::new(AtomicBool::new(false)),
             _process: Mutex::new(None),
             _job: Mutex::new(None),
+            node_path: Mutex::new(None),
         };
 
         // Try to find node.exe and start the sidecar
         match find_node() {
             Some(node_path) => {
                 log_info!("sidecar: found node at {}", node_path);
+                *manager.node_path.lock().unwrap_or_else(|e| e.into_inner()) = Some(node_path.clone());
 
                 // Ensure sidecar dependencies are installed
                 if let Err(e) = manager.ensure_deps(&node_path) {
@@ -504,6 +508,37 @@ impl SidecarManager {
 
     pub fn available(&self) -> bool {
         self.available.load(Ordering::SeqCst)
+    }
+
+    /// Attempt to restart the sidecar if it died. Returns true if available after attempt.
+    pub fn try_restart(&self) -> bool {
+        if self.available() {
+            return true;
+        }
+        let node_path = self.node_path.lock().unwrap_or_else(|e| e.into_inner()).clone();
+        let Some(node_path) = node_path else {
+            log_warn!("sidecar: cannot restart — no node path cached");
+            return false;
+        };
+        log_info!("sidecar: attempting restart...");
+        // Clean up old process state
+        *self.stdin.lock().unwrap_or_else(|e| e.into_inner()) = None;
+        *self._process.lock().unwrap_or_else(|e| e.into_inner()) = None;
+        *self._job.lock().unwrap_or_else(|e| e.into_inner()) = None;
+        // Drop stale oneshots — they'll never get responses from the dead sidecar
+        self.oneshots.lock().unwrap_or_else(|e| e.into_inner()).clear();
+
+        match self.start_sidecar(&node_path) {
+            Ok(()) => {
+                self.available.store(true, Ordering::SeqCst);
+                log_info!("sidecar: restart successful");
+                true
+            }
+            Err(e) => {
+                log_error!("sidecar: restart failed: {e}");
+                false
+            }
+        }
     }
 
     /// Send a JSON command to the sidecar.

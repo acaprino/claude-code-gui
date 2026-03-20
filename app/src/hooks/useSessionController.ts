@@ -441,8 +441,14 @@ export function useSessionController(props: SessionControllerProps): SessionCont
         setSdkCommands(event.commands);
         setSdkAgents(event.agents);
       } else if (event.type === "autocomplete" || event.type === "status") {
-        if (event.type === "status" && event.status && event.status !== "null" && event.status !== "started") {
-          setMessages(prev => [...prev, { id: nextId(), role: "status", status: event.status, model: event.model, timestamp: Date.now() }]);
+        if (event.type === "status") {
+          // Capture the real SDK session ID from the init event
+          if (event.status === "init" && event.sessionId) {
+            onSessionCreatedRef.current(tabIdRef.current, event.sessionId);
+          }
+          if (event.status && event.status !== "null" && event.status !== "started") {
+            setMessages(prev => [...prev, { id: nextId(), role: "status", status: event.status, model: event.model, timestamp: Date.now() }]);
+          }
         }
       }
 
@@ -503,7 +509,6 @@ export function useSessionController(props: SessionControllerProps): SessionCont
           channelRef = channel;
           if (cancelled) return;
           agentStartedRef.current = true;
-          onSessionCreatedRef.current(tabIdRef.current, tabId);
           refreshIntervalRef.current = setInterval(() => {
             refreshCommands(tabId).then((data) => {
               setSdkCommands(data.commands || []);

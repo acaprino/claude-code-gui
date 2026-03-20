@@ -353,7 +353,7 @@ pub fn spawn_agent(
     plugins: Vec<String>,
     on_event: Channel<AgentEvent>,
 ) -> Result<(), String> {
-    if !sidecar.available() {
+    if !sidecar.try_restart() {
         return Err("Agent SDK not available (Node.js not found)".to_string());
     }
     ensure_project_dir(&project_path)?;
@@ -418,7 +418,7 @@ pub fn agent_resume(
     plugins: Vec<String>,
     on_event: Channel<AgentEvent>,
 ) -> Result<(), String> {
-    if !sidecar.available() {
+    if !sidecar.try_restart() {
         return Err("Agent SDK not available".to_string());
     }
     ensure_project_dir(&project_path)?;
@@ -449,7 +449,7 @@ pub fn agent_fork(
     plugins: Vec<String>,
     on_event: Channel<AgentEvent>,
 ) -> Result<(), String> {
-    if !sidecar.available() {
+    if !sidecar.try_restart() {
         return Err("Agent SDK not available".to_string());
     }
     ensure_project_dir(&project_path)?;
@@ -558,7 +558,7 @@ pub async fn list_agent_sessions(
     sidecar: State<'_, Arc<SidecarManager>>,
     cwd: Option<String>,
 ) -> Result<serde_json::Value, String> {
-    if !sidecar.available() {
+    if !sidecar.try_restart() {
         return Err("Agent SDK not available".to_string());
     }
     let key = format!("_sessions_{}", uuid::Uuid::new_v4());
@@ -581,7 +581,7 @@ pub async fn get_agent_messages(
     session_id: String,
     dir: Option<String>,
 ) -> Result<serde_json::Value, String> {
-    if !sidecar.available() {
+    if !sidecar.try_restart() {
         return Err("Agent SDK not available".to_string());
     }
     let key = format!("_messages_{}", uuid::Uuid::new_v4());
@@ -604,7 +604,7 @@ pub async fn refresh_commands(
     sidecar: State<'_, Arc<SidecarManager>>,
     tab_id: String,
 ) -> Result<serde_json::Value, String> {
-    if !sidecar.available() {
+    if !sidecar.try_restart() {
         return Err("Agent SDK not available".to_string());
     }
     let key = format!("_commands_{}", uuid::Uuid::new_v4());
