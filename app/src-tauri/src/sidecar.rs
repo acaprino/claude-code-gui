@@ -298,7 +298,11 @@ impl SidecarManager {
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .creation_flags(0x08000000) // CREATE_NO_WINDOW
+            // DETACHED_PROCESS (0x08) + CREATE_NEW_PROCESS_GROUP (0x200):
+            // Prevents a console window from flashing, but unlike CREATE_NO_WINDOW
+            // (0x08000000), child processes (SDK Bash tool) can still open GUI apps
+            // and browsers via `start` / ShellExecute.
+            .creation_flags(0x00000008 | 0x00000200)
             .spawn()
             .map_err(|e| format!("Failed to spawn sidecar: {e}"))?;
 
@@ -631,7 +635,8 @@ fn create_job_for_child(child: &Child) -> Result<JobHandle, String> {
 
         // Configure: kill all processes when the job handle is closed
         let mut info = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
-        info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+        info.BasicLimitInformation.LimitFlags =
+            JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE | JOB_OBJECT_LIMIT_BREAKAWAY_OK;
         SetInformationJobObject(
             job,
             JobObjectExtendedLimitInformation,
