@@ -125,11 +125,25 @@ export default memo(function ChatView(props: SessionViewProps) {
   // Sticky auto-scroll: stay pinned to bottom unless user scrolls up
   const stickyRef = useRef(true);
   const lastScrollTopRef = useRef(0);
+  // Guard: ignore scroll events caused by programmatic scrollTop assignment
+  const programmaticScrollRef = useRef(false);
+
+  const scrollToBottom = useCallback(() => {
+    const el = chatContainerRef.current;
+    if (!el) return;
+    programmaticScrollRef.current = true;
+    el.scrollTop = el.scrollHeight;
+  }, []);
 
   useEffect(() => {
     const el = chatContainerRef.current;
     if (!el) return;
     const handleScroll = () => {
+      if (programmaticScrollRef.current) {
+        programmaticScrollRef.current = false;
+        lastScrollTopRef.current = el.scrollTop;
+        return;
+      }
       const { scrollTop, scrollHeight, clientHeight } = el;
       const atBottom = scrollHeight - scrollTop - clientHeight < 60;
       if (scrollTop < lastScrollTopRef.current && !atBottom) {
@@ -171,28 +185,25 @@ export default memo(function ChatView(props: SessionViewProps) {
   // Auto-scroll on new messages or streaming updates (only when sticky)
   useEffect(() => {
     if (!stickyRef.current) return;
-    messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
-  }, [messages, streamingTick, thinkingTick]);
-
+    scrollToBottom();
+  }, [messages, streamingTick, thinkingTick, scrollToBottom]);
 
   // Scroll to bottom when session becomes ready (e.g. after resume)
   // Focus is owned by ChatInput's own effect
   // Retry several times because heavy message rendering (markdown, syntax
-  // highlighting) can cause the layout to shift after the first scrollIntoView.
+  // highlighting) can cause the layout to shift after the first scrollToBottom.
   useEffect(() => {
     if (inputState === "awaiting_input") {
       stickyRef.current = true;
-      const scroll = () => messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
-      scroll();
-      const rafId = requestAnimationFrame(scroll);
-      // Escalating delays to catch layout shifts from markdown/syntax-highlight rendering
-      const timeoutIds = [50, 150, 400].map(ms => window.setTimeout(scroll, ms));
+      scrollToBottom();
+      const rafId = requestAnimationFrame(scrollToBottom);
+      const timeoutIds = [50, 150, 400, 800].map(ms => window.setTimeout(scrollToBottom, ms));
       return () => {
         cancelAnimationFrame(rafId);
         timeoutIds.forEach(clearTimeout);
       };
     }
-  }, [inputState]);
+  }, [inputState, scrollToBottom]);
 
   // Auto-focus textarea when window regains focus
   useEffect(() => {
@@ -289,7 +300,7 @@ export default memo(function ChatView(props: SessionViewProps) {
         const paths = event.payload.paths.map(p => String(p));
         if (paths.length > 0) {
           setDroppedFiles(paths);
-          messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
+          scrollToBottom();
           getCurrentWindow().setFocus().then(() => {
             setTimeout(() => {
               inputRef.current?.focus();
@@ -299,7 +310,7 @@ export default memo(function ChatView(props: SessionViewProps) {
       }
     });
     return () => { unlisten.then(fn => fn()); };
-  }, [isActive, setDroppedFiles, messagesEndRef]);
+  }, [isActive, setDroppedFiles, scrollToBottom]);
 
   // Click anywhere in chat -> refocus textarea
   const handleClick = useCallback((e: React.MouseEvent) => {
