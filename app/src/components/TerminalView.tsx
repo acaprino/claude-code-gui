@@ -45,27 +45,30 @@ function splitCodeBlocks(text: string): { code: boolean; lang?: string; content:
   let inCode = false;
   let codeLang = "";
   let codeStart = 0;
+  let fenceOpenIdx = 0;
   let match: RegExpExecArray | null;
   while ((match = re.exec(text)) !== null) {
     if (!inCode) {
       // Opening fence — flush preceding plain text
       const plain = text.slice(last, match.index);
       if (plain) segments.push({ code: false, content: plain });
+      last = match.index;
+      fenceOpenIdx = match.index;
       inCode = true;
       codeLang = match[1] || "";
-      codeStart = match.index + match[0].length + 1; // skip the newline after ```
+      codeStart = Math.min(match.index + match[0].length + 1, text.length);
     } else {
       // Closing fence
       const content = text.slice(codeStart, match.index);
       segments.push({ code: true, lang: codeLang || undefined, content });
       inCode = false;
-      last = match.index + match[0].length + 1;
+      last = Math.min(match.index + match[0].length + 1, text.length);
     }
   }
   // Remaining text (or unclosed fence treated as plain)
   if (inCode) {
-    // Unclosed fence — treat everything from opening ``` as plain text
-    const plain = text.slice(last > 0 ? last : 0);
+    // Unclosed fence — re-emit from the opening ``` onward as plain text
+    const plain = text.slice(fenceOpenIdx);
     if (plain) segments.push({ code: false, content: plain });
   } else {
     const plain = text.slice(last);
@@ -75,7 +78,7 @@ function splitCodeBlocks(text: string): { code: boolean; lang?: string; content:
 }
 
 /** Render assistant text with inline markdown + fenced code blocks */
-function AssistantText({ text }: { text: string }) {
+const AssistantText = memo(function AssistantText({ text }: { text: string }) {
   const segments = splitCodeBlocks(text);
   return (
     <pre className="tv-assistant">
@@ -98,7 +101,7 @@ function AssistantText({ text }: { text: string }) {
       })}
     </pre>
   );
-}
+});
 
 /** Elapsed timer — ticks every second while visible */
 const ElapsedTimer = memo(function ElapsedTimer({ startTime }: { startTime: number }) {
@@ -236,10 +239,20 @@ export default memo(function TerminalView(props: SessionViewProps) {
   const virtualizer = useVirtualizer({
     count: visibleItems.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => 44,
+    estimateSize: () => 80,
     overscan: 20,
     getItemKey: (index) => visibleItems[index].id,
   });
+
+  // Re-scroll when virtualizer measurement updates total size (code blocks can be much taller than estimate)
+  const totalSize = virtualizer.getTotalSize();
+  const prevTotalSizeRef = useRef(totalSize);
+  useEffect(() => {
+    if (totalSize !== prevTotalSizeRef.current) {
+      prevTotalSizeRef.current = totalSize;
+      if (stickyRef.current) scrollToBottom();
+    }
+  }, [totalSize, stickyRef, scrollToBottom]);
 
   // Drag & Drop
   useEffect(() => {
