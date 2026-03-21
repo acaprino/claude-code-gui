@@ -37,17 +37,65 @@ function renderInlineMarkdown(text: string): React.ReactNode[] {
   return parts;
 }
 
-/** Render assistant text with inline markdown per line */
+/** Split text into plain segments and fenced code blocks */
+function splitCodeBlocks(text: string): { code: boolean; lang?: string; content: string }[] {
+  const segments: { code: boolean; lang?: string; content: string }[] = [];
+  const re = /^```(\w*)\s*$/gm;
+  let last = 0;
+  let inCode = false;
+  let codeLang = "";
+  let codeStart = 0;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(text)) !== null) {
+    if (!inCode) {
+      // Opening fence — flush preceding plain text
+      const plain = text.slice(last, match.index);
+      if (plain) segments.push({ code: false, content: plain });
+      inCode = true;
+      codeLang = match[1] || "";
+      codeStart = match.index + match[0].length + 1; // skip the newline after ```
+    } else {
+      // Closing fence
+      const content = text.slice(codeStart, match.index);
+      segments.push({ code: true, lang: codeLang || undefined, content });
+      inCode = false;
+      last = match.index + match[0].length + 1;
+    }
+  }
+  // Remaining text (or unclosed fence treated as plain)
+  if (inCode) {
+    // Unclosed fence — treat everything from opening ``` as plain text
+    const plain = text.slice(last > 0 ? last : 0);
+    if (plain) segments.push({ code: false, content: plain });
+  } else {
+    const plain = text.slice(last);
+    if (plain) segments.push({ code: false, content: plain });
+  }
+  return segments;
+}
+
+/** Render assistant text with inline markdown + fenced code blocks */
 function AssistantText({ text }: { text: string }) {
-  const lines = text.split("\n");
+  const segments = splitCodeBlocks(text);
   return (
     <pre className="tv-assistant">
-      {lines.map((line, i) => (
-        <span key={i}>
-          {line.includes("**") || line.includes("`") ? renderInlineMarkdown(line) : linkifyPaths(line, `l${i}-`)}
-          {i < lines.length - 1 ? "\n" : null}
-        </span>
-      ))}
+      {segments.map((seg, si) => {
+        if (seg.code) {
+          return (
+            <code key={si} className="tv-code-block">
+              {seg.lang && <span className="tv-code-lang">{seg.lang}</span>}
+              {seg.content}
+            </code>
+          );
+        }
+        const lines = seg.content.split("\n");
+        return lines.map((line, i) => (
+          <span key={`${si}-${i}`}>
+            {line.includes("**") || line.includes("`") ? renderInlineMarkdown(line) : linkifyPaths(line, `l${si}-${i}-`)}
+            {(si < segments.length - 1 || i < lines.length - 1) ? "\n" : null}
+          </span>
+        ));
+      })}
     </pre>
   );
 }
