@@ -13,6 +13,8 @@ use windows::Win32::System::JobObjects::*;
 use serde::{Deserialize, Serialize};
 use tauri::ipc::Channel;
 
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
 /// Events emitted by the sidecar, forwarded to the frontend via Tauri IPC.
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase", tag = "type")]
@@ -237,7 +239,7 @@ impl SidecarManager {
         let output = Command::new(&npm_cmd)
             .args(["install", "--production"])
             .current_dir(&sidecar_dir)
-            .creation_flags(0x08000000) // CREATE_NO_WINDOW
+            .creation_flags(CREATE_NO_WINDOW)
             .output()
             .map_err(|e| format!("Failed to run npm install: {e}"))?;
 
@@ -290,11 +292,11 @@ impl SidecarManager {
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            // DETACHED_PROCESS (0x08) + CREATE_NEW_PROCESS_GROUP (0x200):
-            // Prevents a console window from flashing, but unlike CREATE_NO_WINDOW
-            // (0x08000000), child processes (SDK Bash tool) can still open GUI apps
-            // and browsers via `start` / ShellExecute.
-            .creation_flags(0x00000008 | 0x00000200)
+            // CREATE_NO_WINDOW: suppresses console allocation for the sidecar
+            // and all its child processes (SDK Bash tool, etc.), preventing the
+            // CMD window flash on Windows. ShellExecute / GUI apps still work fine.
+            // CREATE_NEW_PROCESS_GROUP omitted — Job Object handles process tree cleanup.
+            .creation_flags(CREATE_NO_WINDOW)
             .spawn()
             .map_err(|e| format!("Failed to spawn sidecar: {e}"))?;
 
