@@ -7,7 +7,7 @@ export interface SystemPrompt {
 
 export interface Tab {
   id: string;
-  type: "new-tab" | "agent" | "about" | "usage" | "system-prompt" | "sessions" | "transcript";
+  type: "new-tab" | "agent" | "about" | "usage" | "system-prompt" | "sessions" | "transcript" | "settings";
   projectPath?: string;
   projectName?: string;
 
@@ -63,6 +63,7 @@ export interface Settings {
   hide_thinking?: boolean;
   marketplace_global?: boolean;
   onboarding_seen?: boolean;
+  skip_close_confirm?: boolean;
 }
 
 export interface UsageEntry {
@@ -139,6 +140,8 @@ export function getTabLabel(tab: Tab): string {
             ? "System Prompts"
             : tab.type === "sessions"
               ? "Sessions"
+              : tab.type === "settings"
+                ? "Settings"
               : tab.type === "transcript"
                 ? "Transcript"
                 : "New Tab";

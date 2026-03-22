@@ -117,6 +117,20 @@ fn main() {
                 }
             }
 
+            // Enable native right-click context menu (Copy / Paste / Select All).
+            if let Some(window) = app.get_webview_window("main") {
+                if let Err(e) = window.with_webview(|webview| {
+                    let controller = webview.controller();
+                    unsafe {
+                        if let Ok(settings) = controller.CoreWebView2().and_then(|core| core.Settings()) {
+                            let _ = settings.SetAreDefaultContextMenusEnabled(true);
+                        }
+                    }
+                }) {
+                    log_warn!("Failed to enable context menus: {e}");
+                }
+            }
+
             log_info!("setup: complete");
             Ok(())
         })

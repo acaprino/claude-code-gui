@@ -20,6 +20,7 @@ const AboutPage = lazy(() => import("./components/AboutPage"));
 const UsagePage = lazy(() => import("./components/UsagePage"));
 const SystemPromptPage = lazy(() => import("./components/SystemPromptPage"));
 const SessionBrowser = lazy(() => import("./components/SessionBrowser"));
+const SettingsPage = lazy(() => import("./components/SettingsPage"));
 const SessionPanel = lazy(() => import("./components/SessionPanel"));
 const TranscriptView = lazy(() => import("./components/TranscriptView"));
 
@@ -36,6 +37,7 @@ function AppContent() {
     toggleUsageTab,
     toggleSystemPromptTab,
     toggleSessionsTab,
+    toggleSettingsTab,
     closeTab,
     updateTab,
     markNewOutput,
@@ -85,7 +87,7 @@ function AppContent() {
   const [pendingCloseTabId, setPendingCloseTabId] = useState<string | null>(null);
   const safeCloseTab = useCallback((tabId: string) => {
     const tab = tabsRef.current.find((t) => t.id === tabId);
-    if (tab?.type === "agent" && tab.exitCode == null) {
+    if (tab?.type === "agent" && tab.exitCode == null && !settingsRef.current?.skip_close_confirm) {
       setPendingCloseTabId(tabId);
     } else {
       closeTab(tabId);
@@ -163,6 +165,9 @@ function AppContent() {
       } else if (e.ctrlKey && e.shiftKey && e.key === "P") {
         e.preventDefault();
         toggleSystemPromptTab();
+      } else if (e.key === "," && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        toggleSettingsTab();
       } else if (e.ctrlKey && e.shiftKey && e.key === "S") {
         e.preventDefault();
         updateSettings({ session_panel_open: !settingsRef.current?.session_panel_open });
@@ -180,7 +185,7 @@ function AppContent() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [addTabAndResetFilter, toggleAboutTab, toggleUsageTab, toggleSystemPromptTab, toggleSessionsTab, updateSettings, safeCloseTab, activeTabId, nextTab, prevTab]);
+  }, [addTabAndResetFilter, toggleAboutTab, toggleUsageTab, toggleSystemPromptTab, toggleSessionsTab, toggleSettingsTab, updateSettings, safeCloseTab, activeTabId, nextTab, prevTab]);
 
   const handleLaunch = useCallback(
     (tabId: string, projectPath: string, projectName: string, modelIdx: number, effortIdx: number, permModeIdx: number, autocompact: boolean, temporary?: boolean) => {
@@ -388,6 +393,7 @@ function AppContent() {
                     onLaunch={handleLaunch}
                     onRequestClose={closeTab}
                     onOpenSystemPrompts={toggleSystemPromptTab}
+                    onOpenSettings={toggleSettingsTab}
                     isActive={isActive}
                   />
                 </ErrorBoundary>
@@ -436,6 +442,18 @@ function AppContent() {
                         const newId = addTab();
                         updateTab(newId, { type: "transcript", transcriptSessionId: sessionId });
                       }}
+                    />
+                  </Suspense>
+                </ErrorBoundary>
+              ) : tab.type === "settings" && settings ? (
+                <ErrorBoundary tabId={tab.id} onClose={closeTab}>
+                  <Suspense fallback={null}>
+                    <SettingsPage
+                      tabId={tab.id}
+                      onRequestClose={closeTab}
+                      isActive={isActive}
+                      settings={settings!}
+                      onUpdate={updateSettings}
                     />
                   </Suspense>
                 </ErrorBoundary>
@@ -489,6 +507,10 @@ function AppContent() {
         <div className="confirm-overlay" onClick={() => setPendingCloseTabId(null)}>
           <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
             <div className="confirm-text">Agent is still running. Close tab and kill agent?</div>
+            <label className="confirm-checkbox">
+              <input type="checkbox" onChange={(e) => { if (e.target.checked) updateSettings({ skip_close_confirm: true }); }} />
+              <span>Don’t ask again</span>
+            </label>
             <div className="confirm-actions">
               <button className="confirm-btn confirm-btn-danger" onClick={() => { closeTab(pendingCloseTabId); setPendingCloseTabId(null); }}>Close tab</button>
               <button className="confirm-btn" onClick={() => setPendingCloseTabId(null)}>Cancel</button>

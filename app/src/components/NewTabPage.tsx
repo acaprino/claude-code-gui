@@ -7,7 +7,6 @@ import InfoStrip from "./InfoStrip";
 import CreateProjectModal from "./modals/CreateProjectModal";
 import LabelProjectModal from "./modals/LabelProjectModal";
 import QuickLaunchModal from "./modals/QuickLaunchModal";
-import SettingsModal from "./modals/SettingsModal";
 import { ProjectInfo, MODELS, EFFORTS, SORT_ORDERS, PERM_MODES } from "../types";
 import "./NewTabPage.css";
 
@@ -25,12 +24,14 @@ interface NewTabPageProps {
   ) => void;
   onRequestClose: (tabId: string) => void;
   onOpenSystemPrompts: () => void;
+  onOpenSettings: () => void;
   isActive: boolean;
 }
 
-type ModalType = "create-project" | "label-project" | "quick-launch" | "settings" | null;
+type ModalType = "create-project" | "label-project" | "quick-launch" | null;
 
-function NewTabPage({ tabId, onLaunch, onRequestClose, onOpenSystemPrompts, isActive }: NewTabPageProps) {
+function NewTabPage({ tabId, onLaunch, onRequestClose, onOpenSystemPrompts,
+    onOpenSettings, isActive }: NewTabPageProps) {
   const {
     settings,
     projects,
@@ -108,11 +109,6 @@ function NewTabPage({ tabId, onLaunch, onRequestClose, onOpenSystemPrompts, isAc
       if (activeModalRef.current) return;
 
       // Ctrl shortcuts
-      if (e.ctrlKey && e.key === ",") {
-        e.preventDefault();
-        setActiveModal("settings");
-        return;
-      }
       if (e.ctrlKey) return;
 
       const currentProjects = projectsRef.current;
@@ -224,7 +220,6 @@ function NewTabPage({ tabId, onLaunch, onRequestClose, onOpenSystemPrompts, isAc
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isActive, hasSettings, tabId, setFilter]);
 
-  const openSettings = useCallback(() => setActiveModal("settings"), []);
 
   if (!settings) {
     return (
@@ -269,7 +264,7 @@ function NewTabPage({ tabId, onLaunch, onRequestClose, onOpenSystemPrompts, isAc
       <InfoStrip
         filter={filter}
         projectCount={projects.length}
-        onOpenSettings={openSettings}
+        onOpenSettings={onOpenSettings}
         onOpenSystemPrompts={onOpenSystemPrompts}
         onQuickLaunch={() => setActiveModal("quick-launch")}
       />
@@ -318,13 +313,7 @@ function NewTabPage({ tabId, onLaunch, onRequestClose, onOpenSystemPrompts, isAc
           }}
         />
       )}
-      {activeModal === "settings" && (
-        <SettingsModal
-          settings={settings}
-          onClose={() => setActiveModal(null)}
-          onUpdate={updateSettings}
-        />
-      )}
+
     </div>
   );
 }

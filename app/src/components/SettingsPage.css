@@ -1,11 +1,82 @@
+/* SettingsPage - full tab layout */
+.settings-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  user-select: text;
+}
+
+.settings-layout {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.settings-nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-4) var(--space-3);
+  width: 160px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--surface);
+  background: var(--mantle);
+}
+
+.settings-nav-item {
+  background: none;
+  border: none;
+  user-select: none;
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-dim);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s ease-out, color 0.12s ease-out;
+  border-left: 2px solid transparent;
+}
+
+.settings-nav-item:hover {
+  background: var(--hover-overlay-subtle);
+  color: var(--text);
+}
+
+.settings-nav-item:active {
+  transform: scale(0.97);
+  transition-duration: 0.05s;
+}
+
+.settings-nav-item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.settings-nav-item.active {
+  background: var(--surface);
+  color: var(--accent);
+  border-left-color: var(--accent);
+}
+
+.settings-panel {
+  animation: settings-panel-in 0.12s ease-out;
+}
+
+@keyframes settings-panel-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 .settings-content {
-  max-height: calc(80vh - 100px);
+  flex: 1;
+  min-width: 0;
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--surface) transparent;
-  /* Fade out content at the bottom edge to hint at scrollability */
-  mask-image: linear-gradient(to bottom, black calc(100% - 24px), transparent 100%);
-  padding-bottom: var(--space-4);
+  padding: var(--space-4) var(--space-6);
+  max-width: 640px;
 }
 
 .settings-section {

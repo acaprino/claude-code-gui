@@ -176,6 +176,7 @@ export function useTabManager() {
   const toggleUsageTab = useCallback(() => toggleSingletonTab("usage"), [toggleSingletonTab]);
   const toggleSystemPromptTab = useCallback(() => toggleSingletonTab("system-prompt"), [toggleSingletonTab]);
   const toggleSessionsTab = useCallback(() => toggleSingletonTab("sessions"), [toggleSingletonTab]);
+  const toggleSettingsTab = useCallback(() => toggleSingletonTab("settings"), [toggleSingletonTab]);
 
   const closeTab = useCallback(
     (tabId: string) => {
@@ -279,6 +280,7 @@ export function useTabManager() {
     toggleUsageTab,
     toggleSystemPromptTab,
     toggleSessionsTab,
+    toggleSettingsTab,
     closeTab,
     updateTab,
     markNewOutput,
