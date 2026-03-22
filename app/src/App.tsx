@@ -453,7 +453,7 @@ function AppContent() {
                       tabId={tab.id}
                       onRequestClose={closeTab}
                       isActive={isActive}
-                      settings={settings!}
+                      settings={settings}
                       onUpdate={updateSettings}
                     />
                   </Suspense>
@@ -509,11 +509,11 @@ function AppContent() {
           <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
             <div className="confirm-text">Agent is still running. Close tab and kill agent?</div>
             <label className="confirm-checkbox">
-              <input type="checkbox" onChange={(e) => { if (e.target.checked) updateSettings({ skip_close_confirm: true }); }} />
+              <input type="checkbox" id="skip-close-confirm" />
               <span>Don’t ask again</span>
             </label>
             <div className="confirm-actions">
-              <button className="confirm-btn confirm-btn-danger" onClick={() => { closeTab(pendingCloseTabId); setPendingCloseTabId(null); }}>Close tab</button>
+              <button className="confirm-btn confirm-btn-danger" onClick={() => { const skip = (document.getElementById("skip-close-confirm") as HTMLInputElement)?.checked; if (skip) updateSettings({ skip_close_confirm: true }); closeTab(pendingCloseTabId); setPendingCloseTabId(null); }}>Close tab</button>
               <button className="confirm-btn" onClick={() => setPendingCloseTabId(null)}>Cancel</button>
             </div>
           </div>

@@ -154,65 +154,65 @@ export default memo(function SettingsPage({ tabId, onRequestClose, isActive, set
 
         <div className="settings-content">
           {activeTab === "themes" && (
-                <div className="settings-panel" key="themes">
-                  <h3 className="settings-section__title">Themes</h3>
-              <div className="theme-grid">
-                {THEMES.map((theme, idx) => (
-                  <button
+                    <div className="settings-panel" key="themes">
+                      <h3 className="settings-section__title">Themes</h3>
+                  <div className="theme-grid">
+                    {THEMES.map((theme, idx) => (
+                      <button
                     key={theme.name}
                     className={`theme-preview ${idx === settings.theme_idx ? "active" : ""}`}
                     onClick={() => onUpdate({ theme_idx: idx })}
                     title={theme.name}
-                  >
+                      >
                     <div className="theme-preview-colors" style={{
-                  background: theme.colors.bg,
-                  fontFamily: theme.termFont ? `"${theme.termFont}", monospace` : undefined,
-                  fontSize: theme.termFontSize ? `${theme.termFontSize}px` : undefined,
+                      background: theme.colors.bg,
+                      fontFamily: theme.termFont ? `"${theme.termFont}", monospace` : undefined,
+                      fontSize: theme.termFontSize ? `${theme.termFontSize}px` : undefined,
                     }}>
-                  <div className="theme-swatch-row">
+                      <div className="theme-swatch-row">
                     <span style={{ color: theme.colors.text }}>text</span>
                     <span style={{ color: theme.colors.accent }}>accent</span>
                     <span style={{ color: theme.colors.green }}>ok</span>
                     <span style={{ color: theme.colors.red }}>err</span>
                     <span style={{ color: theme.colors.yellow }}>warn</span>
-                  </div>
-                  <div className="theme-swatch-bar">
+                      </div>
+                      <div className="theme-swatch-bar">
                     <span style={{ background: theme.colors.surface }}></span>
                     <span style={{ background: theme.colors.accent }}></span>
                     <span style={{ background: theme.colors.green }}></span>
                     <span style={{ background: theme.colors.red }}></span>
                     <span style={{ background: theme.colors.yellow }}></span>
-                  </div>
+                      </div>
                     </div>
                     <div className="theme-preview-name" style={{ background: theme.colors.surface, color: theme.colors.text }}>{theme.name}</div>
-                  </button>
-                ))}
-              </div>
+                      </button>
+                    ))}
+                  </div>
         </div>
 
           )}
 
           {activeTab === "fonts" && (
-                <div className="settings-panel" key="fonts">
-                  <h3 className="settings-section__title">Terminal Font</h3>
-              <p className="modal-hint" style={{ marginTop: 0, marginBottom: "var(--space-2)" }}>Used in terminal/xterm sessions</p>
-              <div className="font-settings-row">
-                <div className="modal-field">
-                  <label htmlFor="font-family">Family</label>
-                  <select
+                    <div className="settings-panel" key="fonts">
+                      <h3 className="settings-section__title">Terminal Font</h3>
+                  <p className="modal-hint" style={{ marginTop: 0, marginBottom: "var(--space-2)" }}>Used in terminal/xterm sessions</p>
+                  <div className="font-settings-row">
+                    <div className="modal-field">
+                      <label htmlFor="font-family">Family</label>
+                      <select
                     id="font-family"
                     className="modal-input"
                     value={fontFamily}
                     onChange={(e) => setFontFamily(e.target.value)}
-                  >
+                      >
                     {FONT_OPTIONS.map((f) => (
-                  <option key={f} value={f}>{f}</option>
+                      <option key={f} value={f}>{f}</option>
                     ))}
-                  </select>
-                </div>
-                <div className="modal-field">
-                  <label htmlFor="font-size">Size ({fontSize}px)</label>
-                  <input
+                      </select>
+                    </div>
+                    <div className="modal-field">
+                      <label htmlFor="font-size">Size ({fontSize}px)</label>
+                      <input
                     id="font-size"
                     type="range"
                     min="10"
@@ -220,39 +220,39 @@ export default memo(function SettingsPage({ tabId, onRequestClose, isActive, set
                     value={fontSize}
                     onChange={(e) => setFontSize(Number(e.target.value))}
                     className="modal-input"
-                  />
-                </div>
-              </div>
-              <div className="font-preview" style={{
-                fontFamily: `'${fontFamily}', 'Consolas', monospace`,
-                fontSize: `${fontSize}px`,
-              }}>
-                {"fn main() {"}<br/>
-                {'    let result = fetch_data().await?;'}<br/>
-                {'    println!("{result:?}");'}<br/>
-                {"}"}<br/>
-                {"// 0O Il1| {}()[]<>"}
-              </div>
+                      />
+                    </div>
+                  </div>
+                  <div className="font-preview" style={{
+                    fontFamily: `'${fontFamily}', 'Consolas', monospace`,
+                    fontSize: `${fontSize}px`,
+                  }}>
+                    {"fn main() {"}<br/>
+                    {'    let result = fetch_data().await?;'}<br/>
+                    {'    println!("{result:?}");'}<br/>
+                    {"}"}<br/>
+                    {"// 0O Il1| {}()[]<>"}
+                  </div>
 
-                  <h3 className="settings-section__title" style={{ marginTop: "var(--space-6)" }}>Chat Font</h3>
-              <p className="modal-hint" style={{ marginTop: 0, marginBottom: "var(--space-2)" }}>Used in chat-style message views</p>
-              <div className="font-settings-row">
-                <div className="modal-field">
-                  <label htmlFor="chat-font-family">Family</label>
-                  <select
+                      <h3 className="settings-section__title" style={{ marginTop: "var(--space-6)" }}>Chat Font</h3>
+                  <p className="modal-hint" style={{ marginTop: 0, marginBottom: "var(--space-2)" }}>Used in chat-style message views</p>
+                  <div className="font-settings-row">
+                    <div className="modal-field">
+                      <label htmlFor="chat-font-family">Family</label>
+                      <select
                     id="chat-font-family"
                     className="modal-input"
                     value={chatFontFamily}
                     onChange={(e) => setChatFontFamily(e.target.value)}
-                  >
+                      >
                     {CHAT_FONT_OPTIONS.map((f) => (
-                  <option key={f} value={f}>{f}</option>
+                      <option key={f} value={f}>{f}</option>
                     ))}
-                  </select>
-                </div>
-                <div className="modal-field">
-                  <label htmlFor="chat-font-size">Size ({chatFontSize}px)</label>
-                  <input
+                      </select>
+                    </div>
+                    <div className="modal-field">
+                      <label htmlFor="chat-font-size">Size ({chatFontSize}px)</label>
+                      <input
                     id="chat-font-size"
                     type="range"
                     min="10"
@@ -260,139 +260,139 @@ export default memo(function SettingsPage({ tabId, onRequestClose, isActive, set
                     value={chatFontSize}
                     onChange={(e) => setChatFontSize(Number(e.target.value))}
                     className="modal-input"
-                  />
-                </div>
-              </div>
-              <div className="font-preview" style={{
-                fontFamily: `'${chatFontFamily}', 'Segoe UI', system-ui, sans-serif`,
-                fontSize: `${chatFontSize}px`,
-              }}>
-                The quick brown fox jumps over the lazy dog.<br/>
-                {"0123456789 — \"quoted\" — 'apostrophe'"}
-              </div>
+                      />
+                    </div>
+                  </div>
+                  <div className="font-preview" style={{
+                    fontFamily: `'${chatFontFamily}', 'Segoe UI', system-ui, sans-serif`,
+                    fontSize: `${chatFontSize}px`,
+                  }}>
+                    The quick brown fox jumps over the lazy dog.<br/>
+                    {"0123456789 — \"quoted\" — 'apostrophe'"}
+                  </div>
         </div>
 
           )}
 
           {activeTab === "projects" && (
-                <div className="settings-panel" key="projects">
-                  <h3 className="settings-section__title">Project Directories</h3>
-              <p className="modal-hint" style={{ marginTop: 0, marginBottom: "var(--space-2)" }}>Changes require save to take effect</p>
-              <ul className="dir-list">
-                {dirEntries.map((entry, i) => (
-                  <li key={entry.path} className="dir-item">
+                    <div className="settings-panel" key="projects">
+                      <h3 className="settings-section__title">Project Directories</h3>
+                  <p className="modal-hint" style={{ marginTop: 0, marginBottom: "var(--space-2)" }}>Changes require save to take effect</p>
+                  <ul className="dir-list">
+                    {dirEntries.map((entry, i) => (
+                      <li key={entry.path} className="dir-item">
                     <button
-                  className={`dir-mode-badge ${entry.mode}`}
-                  onClick={() => toggleDirMode(i)}
-                  title="Click to toggle: container (subdirs are projects) / single project"
+                      className={`dir-mode-badge ${entry.mode}`}
+                      onClick={() => toggleDirMode(i)}
+                      title="Click to toggle: container (subdirs are projects) / single project"
                     >
-                  {entry.mode === "container" ? "container" : "project"}
+                      {entry.mode === "container" ? "container" : "project"}
                     </button>
                     <span className="dir-path" title={entry.path}>{entry.path}</span>
                     {dirEntries.length > 1 && (
-                  <button className="remove-btn" onClick={() => removeDir(i)} title="Remove">
+                      <button className="remove-btn" onClick={() => removeDir(i)} title="Remove">
                     {"\u00d7"}
-                  </button>
+                      </button>
                     )}
-                  </li>
-                ))}
-              </ul>
-              <div className="add-dir-row">
-                <input
-                  ref={dirInputRef}
-                  className="modal-input"
-                  value={newDirPath}
-                  onChange={(e) => setNewDirPath(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") addDir(); }}
-                  placeholder="D:\Projects\other"
-                />
-                <select
-                  className="modal-input add-dir-mode-select"
-                  value={newDirMode}
-                  onChange={(e) => setNewDirMode(e.target.value as DirMode)}
-                >
-                  <option value="container">Container</option>
-                  <option value="single">Single project</option>
-                </select>
-                <button className="modal-btn" onClick={addDir}>Add</button>
-              </div>
-              <p className="modal-hint">
-                Container: each subdirectory is a project. Single project: the folder itself is a project.
-              </p>
-              {dirsDirty && (
-                <div className="modal-buttons" style={{ marginTop: "var(--space-2)" }}>
-                  <button className="modal-btn primary" onClick={saveDirs}>Save &amp; Rescan</button>
-                </div>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="add-dir-row">
+                    <input
+                      ref={dirInputRef}
+                      className="modal-input"
+                      value={newDirPath}
+                      onChange={(e) => setNewDirPath(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") addDir(); }}
+                      placeholder="D:\Projects\other"
+                    />
+                    <select
+                      className="modal-input add-dir-mode-select"
+                      value={newDirMode}
+                      onChange={(e) => setNewDirMode(e.target.value as DirMode)}
+                    >
+                      <option value="container">Container</option>
+                      <option value="single">Single project</option>
+                    </select>
+                    <button className="modal-btn" onClick={addDir}>Add</button>
+                  </div>
+                  <p className="modal-hint">
+                    Container: each subdirectory is a project. Single project: the folder itself is a project.
+                  </p>
+                  {dirsDirty && (
+                    <div className="modal-buttons" style={{ marginTop: "var(--space-2)" }}>
+                      <button className="modal-btn primary" onClick={saveDirs}>Save &amp; Rescan</button>
+                    </div>
           )}
         </div>
 
           )}
 
           {activeTab === "behavior" && (
-                <div className="settings-panel" key="behavior">
-                  <h3 className="settings-section__title">Behavior</h3>
-              <div className="settings-toggle-row">
-                <span>Tab layout</span>
-                <SegmentedControl
-                  options={TAB_LAYOUT_OPTIONS}
-                  value={settings.vertical_tabs ? "vertical" : "horizontal"}
-                  onChange={handleTabLayoutChange}
-                  title="Tab layout"
-                />
-              </div>
-              <div className="settings-toggle-row">
-                <span>Sort order</span>
-                <SegmentedControl
-                  options={SORT_OPTIONS}
-                  value={SORT_ORDERS[settings.sort_idx] ?? SORT_ORDERS[0]}
-                  onChange={handleSortChange}
-                  title="Sort order (F3)"
-                />
-              </div>
-              <div className="settings-toggle-row">
-                <span>Security gate</span>
-                <Switch.Root
-                  className="settings-switch"
-                  checked={settings.security_gate}
-                  onCheckedChange={(checked) => onUpdate({ security_gate: checked })}
-                >
-                  <Switch.Thumb className="settings-switch-thumb" />
-                </Switch.Root>
-              </div>
-              <div className="settings-toggle-row">
-                <span>Autocomplete</span>
-                <Switch.Root
-                  className="settings-switch"
-                  checked={settings.autocomplete_enabled !== false}
-                  onCheckedChange={(checked) => onUpdate({ autocomplete_enabled: checked })}
-                >
-                  <Switch.Thumb className="settings-switch-thumb" />
-                </Switch.Root>
-              </div>
-              <div className="settings-toggle-row">
-                <span>Hide thinking</span>
-                <Switch.Root
-                  className="settings-switch"
-                  checked={settings.hide_thinking ?? false}
-                  onCheckedChange={(checked) => onUpdate({ hide_thinking: checked })}
-                >
-                  <Switch.Thumb className="settings-switch-thumb" />
-                </Switch.Root>
-              </div>
-              <div className="settings-toggle-row">
-                <span>Marketplace (global CLI)</span>
-                <Switch.Root
-                  className="settings-switch"
-                  checked={settings.marketplace_global ?? false}
-                  onCheckedChange={(checked) => {
+                    <div className="settings-panel" key="behavior">
+                      <h3 className="settings-section__title">Behavior</h3>
+                  <div className="settings-toggle-row">
+                    <span>Tab layout</span>
+                    <SegmentedControl
+                      options={TAB_LAYOUT_OPTIONS}
+                      value={settings.vertical_tabs ? "vertical" : "horizontal"}
+                      onChange={handleTabLayoutChange}
+                      title="Tab layout"
+                    />
+                  </div>
+                  <div className="settings-toggle-row">
+                    <span>Sort order</span>
+                    <SegmentedControl
+                      options={SORT_OPTIONS}
+                      value={SORT_ORDERS[settings.sort_idx] ?? SORT_ORDERS[0]}
+                      onChange={handleSortChange}
+                      title="Sort order (F3)"
+                    />
+                  </div>
+                  <div className="settings-toggle-row">
+                    <span>Security gate</span>
+                    <Switch.Root
+                      className="settings-switch"
+                      checked={settings.security_gate}
+                      onCheckedChange={(checked) => onUpdate({ security_gate: checked })}
+                    >
+                      <Switch.Thumb className="settings-switch-thumb" />
+                    </Switch.Root>
+                  </div>
+                  <div className="settings-toggle-row">
+                    <span>Autocomplete</span>
+                    <Switch.Root
+                      className="settings-switch"
+                      checked={settings.autocomplete_enabled !== false}
+                      onCheckedChange={(checked) => onUpdate({ autocomplete_enabled: checked })}
+                    >
+                      <Switch.Thumb className="settings-switch-thumb" />
+                    </Switch.Root>
+                  </div>
+                  <div className="settings-toggle-row">
+                    <span>Hide thinking</span>
+                    <Switch.Root
+                      className="settings-switch"
+                      checked={settings.hide_thinking ?? false}
+                      onCheckedChange={(checked) => onUpdate({ hide_thinking: checked })}
+                    >
+                      <Switch.Thumb className="settings-switch-thumb" />
+                    </Switch.Root>
+                  </div>
+                  <div className="settings-toggle-row">
+                    <span>Marketplace (global CLI)</span>
+                    <Switch.Root
+                      className="settings-switch"
+                      checked={settings.marketplace_global ?? false}
+                      onCheckedChange={(checked) => {
                     onUpdate({ marketplace_global: checked });
                     invoke("set_marketplace_global", { enabled: checked }).catch(console.error);
-                  }}
-                >
-                  <Switch.Thumb className="settings-switch-thumb" />
-                </Switch.Root>
-              </div>
-              <p className="modal-hint">When ON, anvil-toolset plugins are also available in standalone Claude Code CLI sessions.</p>
+                      }}
+                    >
+                      <Switch.Thumb className="settings-switch-thumb" />
+                    </Switch.Root>
+                  </div>
+                  <p className="modal-hint">When ON, anvil-toolset plugins are also available in standalone Claude Code CLI sessions.</p>
         </div>
           )}
         </div>

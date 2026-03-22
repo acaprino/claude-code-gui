@@ -119,7 +119,7 @@ const ActivitySpinner = memo(function ActivitySpinner({ label }: { label: string
   const [startTime] = useState(() => Date.now());
   return (
     <div className="tv-activity">
-      <span className="tv-activity-spinner">{"\u2026"}</span>
+      <span className="tv-activity-spinner" />
       <span className="tv-activity-label">{label}</span>
       <ElapsedTimer startTime={startTime} />
     </div>
@@ -129,7 +129,7 @@ const ActivitySpinner = memo(function ActivitySpinner({ label }: { label: string
 export default memo(function TerminalView(props: SessionViewProps) {
   const {
     modelIdx, effortIdx, permModeIdx, isActive,
-    hideThinking: _hideThinking,
+
     controller: ctrl,
     onConfigChange,
   } = props;
@@ -139,7 +139,7 @@ export default memo(function TerminalView(props: SessionViewProps) {
     inputState, stats, agentTasks, sdkCommands, sdkAgents,
     hasUnresolvedPermission,
     streamingTextRef, streamingIdRef, streamingTick,
-    thinkingTextRef: _thinkingTextRef, thinkingIdRef, thinkingTick,
+    thinkingIdRef, thinkingTick,
     messagesEndRef,
     handleSubmit, handlePermissionRespond, handleAskUserRespond,
     handleCommand, handleInterrupt, handleBackground,
@@ -338,6 +338,7 @@ export default memo(function TerminalView(props: SessionViewProps) {
                 case "thinking":
                   if (msg.ended) return null;
                   return <TermThinkingLine text={msg.text} ended={msg.ended} />;
+                case "result":
                   return null;
                 case "error":
                   return <TermErrorLine code={msg.code} message={msg.message} />;
