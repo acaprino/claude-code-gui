@@ -226,6 +226,16 @@ async function handleCreate(cmd) {
     if (plugins && plugins.length > 0) {
         options.plugins = plugins.map(p => ({ type: 'local', path: p }));
     }
+    // Only load anvil-toolset marketplace plugins — block all other marketplaces
+    let filteredPlugins = {};
+    try {
+        const settingsPath = join(process.env.HOME || process.env.USERPROFILE || "", ".claude", "settings.json");
+        const raw = JSON.parse(readFileSync(settingsPath, "utf-8"));
+        filteredPlugins = Object.fromEntries(
+            Object.entries(raw.enabledPlugins || {}).filter(([key]) => /^[a-zA-Z0-9_-]+@anvil-toolset$/.test(key))
+        );
+    } catch { /* settings missing or malformed — no marketplace plugins */ }
+    options.settings = { ...(options.settings || {}), enabledPlugins: filteredPlugins };
     // Intercept AskUserQuestion tool to route to Anvil UI
     options.hooks = {
         ...(options.hooks || {}),
