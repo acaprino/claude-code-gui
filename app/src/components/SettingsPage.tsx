@@ -441,7 +441,7 @@ export default memo(function SettingsPage({ tabId, onRequestClose, isActive, set
                     {allPluginPaths.length === 0 ? (
                       <p className="modal-hint">No plugins found.</p>
                     ) : (
-                      allPluginPaths.map((pluginPath, i) => {
+                      allPluginPaths.map((_pluginPath, i) => {
                         const name = pluginNames[i];
                         const isEnabled = !disabledPlugins.includes(name);
                         return (

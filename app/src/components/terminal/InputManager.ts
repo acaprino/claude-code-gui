@@ -6,7 +6,7 @@
 import type { Terminal } from "@xterm/xterm";
 import type { TerminalPalette } from "./themes";
 import type { PermissionSuggestion, AskQuestionItem } from "../../types";
-import { fg, BOLD, DIM, RESET, ICON, ERASE_LINE, cursorColumn } from "./AnsiUtils";
+import { fg, BOLD, DIM, RESET, ICON, ERASE_LINE, cursorColumn, cursorUp, CURSOR_SAVE, CURSOR_RESTORE } from "./AnsiUtils";
 
 export type InputMode = "normal" | "processing" | "ask" | "permission";
 
@@ -44,9 +44,11 @@ export class InputManager {
   // Autocomplete state
   private completionInFlight = false;
 
+  // Two-line spinner layout: spinner on line N, cursor on line N+1
+  private spinnerOnScreen = false;
+
   // Output tracking — pauses spinner when output is happening
   private spinnerPauseTimer: ReturnType<typeof setTimeout> | null = null;
-  private spinnerPaused = false;
   private streamingActive = false;
 
   // Disposables
@@ -73,7 +75,6 @@ export class InputManager {
       clearTimeout(this.spinnerPauseTimer);
       this.spinnerPauseTimer = null;
     }
-    this.spinnerPaused = false;
     this.mode = mode;
     if (mode === "normal") {
       this.renderPrompt();
@@ -112,7 +113,6 @@ export class InputManager {
     if (active) {
       // Ensure spinner is stopped during streaming
       this.stopSpinner();
-      this.spinnerPaused = true;
     }
   }
 
@@ -127,13 +127,11 @@ export class InputManager {
     if (this.spinnerInterval) {
       this.stopSpinner();
     }
-    this.spinnerPaused = true;
     if (this.spinnerPauseTimer) clearTimeout(this.spinnerPauseTimer);
     this.spinnerPauseTimer = setTimeout(() => {
       this.spinnerPauseTimer = null;
       // Don't restart spinner if streaming is active or user is typing
       if (this.mode === "processing" && !this.streamingActive && this.buffer.length === 0) {
-        this.spinnerPaused = false;
         this.startSpinner();
       }
     }, 600);
@@ -331,8 +329,14 @@ export class InputManager {
     // interleaving with concurrent streaming writes from TerminalRenderer.
     let prefix = "";
     if (this.mode === "processing" && this.buffer.length === 0) {
+      const hadTwoLineSpinner = this.spinnerOnScreen;
       this.stopSpinner();
-      prefix = "\r\n"; // new line below output — batched with redraw
+      // If spinner had two-line layout (spinner + cursor line below),
+      // stopSpinner already positioned cursor on spinner line — no extra \r\n.
+      // Otherwise, need \r\n to move below the last output line.
+      if (!hadTwoLineSpinner) {
+        prefix = "\r\n";
+      }
     }
     this.buffer = this.buffer.slice(0, this.cursorPos) + text + this.buffer.slice(this.cursorPos);
     this.cursorPos += text.length;
@@ -502,8 +506,7 @@ export class InputManager {
       clearInterval(this.spinnerInterval);
       this.spinnerInterval = null;
     }
-    // Reset pause state so notifyOutput() can stop us
-    this.spinnerPaused = false;
+    this.spinnerOnScreen = false;
     if (this.spinnerPauseTimer) {
       clearTimeout(this.spinnerPauseTimer);
       this.spinnerPauseTimer = null;
@@ -512,6 +515,7 @@ export class InputManager {
     this.spinnerStartTime = Date.now();
     this.renderSpinner();
     this.spinnerInterval = setInterval(() => {
+      if (this.spinnerInterval === null) return; // stale callback guard
       this.spinnerFrame = (this.spinnerFrame + 1) % ICON.spinner.length;
       this.renderSpinner();
     }, 100);
@@ -520,16 +524,30 @@ export class InputManager {
   private renderSpinner(): void {
     const elapsed = Math.floor((Date.now() - this.spinnerStartTime) / 1000);
     const frame = ICON.spinner[this.spinnerFrame];
-    this.terminal.write(
-      `\r${ERASE_LINE}  ${fg(this.palette.accent)}${frame}${RESET} ${DIM}Working... ${elapsed}s${RESET}`
-    );
+    const spinnerLine = `\r${ERASE_LINE}  ${fg(this.palette.accent)}${frame}${RESET} ${DIM}Working... ${elapsed}s${RESET}`;
+
+    if (this.spinnerOnScreen) {
+      // Cursor is on the line BELOW the spinner — go up, update, come back
+      this.terminal.write(CURSOR_SAVE + cursorUp(1) + spinnerLine + CURSOR_RESTORE);
+    } else {
+      // First frame: write spinner, move cursor to line below
+      this.terminal.write(spinnerLine + "\r\n");
+      this.spinnerOnScreen = true;
+    }
   }
 
   private stopSpinner(): void {
+    const wasRunning = this.spinnerInterval !== null;
     if (this.spinnerInterval) {
       clearInterval(this.spinnerInterval);
       this.spinnerInterval = null;
-      // Clear the spinner line
+    }
+    if (this.spinnerOnScreen) {
+      // Cursor is on line below spinner. Clear it, go up to spinner line, clear that too.
+      this.terminal.write(`\r${ERASE_LINE}` + cursorUp(1) + `\r${ERASE_LINE}`);
+      this.spinnerOnScreen = false;
+    } else if (wasRunning) {
+      // Spinner was on current line but never moved to two-line layout — just clear
       this.terminal.write(`\r${ERASE_LINE}`);
     }
   }
