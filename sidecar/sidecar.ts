@@ -635,7 +635,7 @@ async function handleCreate(cmd: CreateCommand | ResumeCommand | ForkCommand): P
   };
 
   if (apiBaseUrl) {
-    options.env = { ...process.env, ANTHROPIC_BASE_URL: apiBaseUrl };
+    process.env.ANTHROPIC_BASE_URL = apiBaseUrl;
   }
 
   if (systemPrompt) {

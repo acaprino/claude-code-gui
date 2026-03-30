@@ -314,6 +314,20 @@ fn validate_perm_mode(mode: &str) -> &str {
     }
 }
 
+/// Validate that api_base_url is either empty or a valid http(s) URL.
+fn validate_api_base_url(url: &str) -> Result<(), String> {
+    if url.is_empty() {
+        return Ok(());
+    }
+    if !url.starts_with("https://") && !url.starts_with("http://") {
+        return Err("API base URL must start with https:// or http://".to_string());
+    }
+    if url.contains('\n') || url.contains('\r') {
+        return Err("API base URL contains invalid characters".to_string());
+    }
+    Ok(())
+}
+
 /// Ensure `project_path` is a valid, existing directory — creating it if necessary.
 /// Rejects UNC paths and path traversal (`..` components) after canonicalization.
 fn ensure_project_dir(project_path: &str) -> Result<(), String> {
@@ -363,6 +377,7 @@ pub fn spawn_agent(
         return Err(format!("System prompt too large (max 100000 bytes)"));
     }
     let perm_mode = validate_perm_mode(&perm_mode);
+    validate_api_base_url(&api_base_url)?;
     log_info!("spawn_agent: tab={tab_id}, project={project_path}, model={model}");
 
     sidecar.register_channel(&tab_id, on_event);
@@ -429,6 +444,7 @@ pub fn agent_resume(
     }
     ensure_project_dir(&project_path)?;
     let perm_mode = validate_perm_mode(&perm_mode);
+    validate_api_base_url(&api_base_url)?;
     log_info!("agent_resume: tab={tab_id}, session={session_id}");
     sidecar.register_channel(&tab_id, on_event);
     sidecar.send_command(&serde_json::json!({
@@ -464,6 +480,7 @@ pub fn agent_fork(
     }
     ensure_project_dir(&project_path)?;
     let perm_mode = validate_perm_mode(&perm_mode);
+    validate_api_base_url(&api_base_url)?;
     log_info!("agent_fork: tab={tab_id}, session={session_id}");
     sidecar.register_channel(&tab_id, on_event);
     sidecar.send_command(&serde_json::json!({

@@ -159,7 +159,7 @@ async function handleCreate(cmd) {
         agentProgressSummaries: true,
     };
     if (apiBaseUrl) {
-        options.env = { ...process.env, ANTHROPIC_BASE_URL: apiBaseUrl };
+        process.env.ANTHROPIC_BASE_URL = apiBaseUrl;
     }
     if (systemPrompt) {
         options.systemPrompt = {

@@ -417,8 +417,8 @@ export default memo(function SettingsPage({ tabId, onRequestClose, isActive, set
                       type="text"
                       className="settings-input"
                       placeholder="https://api.anthropic.com"
-                      value={settings.api_base_url || ""}
-                      onChange={(e) => onUpdate({ api_base_url: e.target.value })}
+                      defaultValue={settings.api_base_url || ""}
+                      onBlur={(e) => onUpdate({ api_base_url: e.target.value.trim() })}
                       spellCheck={false}
                     />
                   </div>
