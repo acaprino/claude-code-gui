@@ -1,4 +1,4 @@
-// Claude Code GUI Sidecar — bridges Rust backend with @anthropic-ai/claude-agent-sdk
+// Figtree Sidecar — bridges Rust backend with @anthropic-ai/claude-agent-sdk
 // Protocol: JSON-lines over stdin (commands) / stdout (events) / stderr (logs)
 import { query, listSessions, getSessionMessages, } from "@anthropic-ai/claude-agent-sdk";
 import Anthropic from "@anthropic-ai/sdk";
@@ -31,7 +31,9 @@ function _writeBuf(tabId, buf) {
 function _flushBatch() {
     _batchTimer = null;
     for (const [tabId, buf] of _batchBuf) {
-        _writeBuf(tabId, buf);
+        if (sessions.has(tabId)) {
+            _writeBuf(tabId, buf);
+        }
     }
     _batchBuf.clear();
 }
@@ -79,7 +81,39 @@ function log(...args) {
 // ── Constants ───────────────────────────────────────────────────────
 let _askIdCounter = 0;
 const VALID_PERM_MODES = new Set(["plan", "acceptEdits", "bypassPermissions"]);
+const VALID_EFFORT_LEVELS = new Set(["high", "medium", "low"]);
 const ACCEPT_EDITS_TOOLS = new Set(["Write", "Edit", "Read", "Glob", "Grep"]);
+const MAX_TEXT_LENGTH = 1_000_000; // 1MB
+const MAX_TABID_LENGTH = 100;
+const MAX_MESSAGES_PER_PAGE = 50;
+const DEFAULT_SESSION_LIMIT = 100;
+// Dangerous shell patterns blocked even in bypassPermissions mode
+const BYPASS_DENY_PATTERNS = [
+    /rm\s+(-rf?|--recursive)\s+[\/~]/,
+    /\.ssh[\\/]/i,
+    /\.credentials/i,
+    /curl\s.*\|\s*(ba)?sh/,
+    /wget\s.*\|\s*(ba)?sh/,
+    /powershell\s.*-enc/i,
+];
+// ── Per-tabId command serialization ─────────────────────────────────
+// Prevents race conditions when concurrent commands arrive for the same tab.
+const _tabLocks = new Map();
+async function withTabLock(tabId, fn) {
+    const prev = _tabLocks.get(tabId) || Promise.resolve();
+    const next = prev.then(fn, fn);
+    _tabLocks.set(tabId, next);
+    try {
+        await next;
+    }
+    finally {
+        // Clean up if we're still the latest
+        if (_tabLocks.get(tabId) === next)
+            _tabLocks.delete(tabId);
+    }
+}
+// ── Autocomplete debounce ───────────────────────────────────────────
+const _latestAutocompleteSeq = new Map();
 // ── Command handlers ────────────────────────────────────────────────
 async function handleCreate(cmd) {
     const { tabId, cwd, model, effort, systemPrompt, permMode, skipPerms, allowedTools, plugins } = cmd;
@@ -119,7 +153,7 @@ async function handleCreate(cmd) {
         abortController,
         cwd: cwd || process.cwd(),
         model: model || undefined,
-        effort: effort || "high",
+        effort: (effort && VALID_EFFORT_LEVELS.has(effort) ? effort : "high"),
         includePartialMessages: true,
         settingSources: ["user", "project", "local"],
         agentProgressSummaries: true,
@@ -145,7 +179,7 @@ async function handleCreate(cmd) {
         options.permissionMode = permState.mode;
     }
     // else: no explicit permissionMode — SDK uses its default
-    // Always register canUseTool to route permission decisions through Claude Code GUI.
+    // Always register canUseTool to route permission decisions through Figtree UI.
     // For bypassPermissions, auto-allow everything without prompting.
     // For acceptEdits, auto-allow file-editing tools and prompt for the rest.
     // For plan/default, prompt for everything.
@@ -156,8 +190,22 @@ async function handleCreate(cmd) {
             // updatedInput is required by the SDK's internal Zod schema — omitting it causes ZodError
             // which silently denies ALL tools (the SDK catches the error and treats it as deny)
             if (permState.mode === "bypassPermissions") {
-                log(`canUseTool: auto-allow (bypass) tool=${toolName}`);
-                return { behavior: "allow", updatedInput: {} };
+                // Even in bypass mode, block dangerous shell patterns
+                if (toolName === "Bash") {
+                    const command = input.command || "";
+                    if (BYPASS_DENY_PATTERNS.some(p => p.test(command))) {
+                        log(`canUseTool: bypass denied dangerous pattern tool=${toolName}`);
+                        // Fall through to permission prompt below
+                    }
+                    else {
+                        log(`canUseTool: auto-allow (bypass) tool=${toolName}`);
+                        return { behavior: "allow", updatedInput: {} };
+                    }
+                }
+                else {
+                    log(`canUseTool: auto-allow (bypass) tool=${toolName}`);
+                    return { behavior: "allow", updatedInput: {} };
+                }
             }
             // AcceptEdits mode: auto-allow file-editing tools
             if (permState.mode === "acceptEdits" && ACCEPT_EDITS_TOOLS.has(toolName)) {
@@ -166,14 +214,19 @@ async function handleCreate(cmd) {
             }
             let description;
             try {
-                description = toolName === "Bash"
-                    ? (input.command || "").slice(0, 200)
-                    : toolName === "Edit" || toolName === "Write" || toolName === "Read"
-                        ? (input.file_path || "")
-                        : JSON.stringify(input).slice(0, 200);
+                if (toolName === "Bash") {
+                    description = (input.command || "").slice(0, 200);
+                }
+                else if (toolName === "Edit" || toolName === "Write" || toolName === "Read") {
+                    description = input.file_path || "";
+                }
+                else {
+                    // Avoid full serialization — only show top-level keys
+                    const keys = Object.keys(input);
+                    description = `{${keys.join(", ")}}`;
+                }
             }
-            catch (err) {
-                log("DEBUG: JSON.stringify failed for tool input:", err.message);
+            catch {
                 description = "(unserializable input)";
             }
             emit({
@@ -226,13 +279,13 @@ async function handleCreate(cmd) {
     if (plugins && plugins.length > 0) {
         options.plugins = plugins.map(p => ({ type: 'local', path: p }));
     }
-    // Intercept AskUserQuestion tool to route to Claude Code GUI
+    // Intercept AskUserQuestion tool to route to Figtree UI
     options.hooks = {
         ...(options.hooks || {}),
         PreToolUse: [
             ...(options.hooks?.PreToolUse || []),
             {
-                matcher: /^AskUserQuestion$/,
+                matcher: "AskUserQuestion",
                 hooks: [async (event) => {
                         const session = sessions.get(tabId);
                         if (!session)
@@ -302,7 +355,20 @@ async function handleCreate(cmd) {
         _config: { cwd: cwd || process.cwd(), model, effort, systemPrompt, permMode, skipPerms, allowedTools, plugins },
         _sessionId: "",
         _interrupted: false,
-        _pushInput: () => { }, // placeholder, set below
+        _pushInput: (text) => {
+            if (inputResolve) {
+                const r = inputResolve;
+                inputResolve = null;
+                r(text);
+            }
+            else {
+                if (inputQueue.length >= 50) {
+                    log(`Input queue overflow for tab ${tabId}, dropping oldest`);
+                    inputQueue.shift();
+                }
+                inputQueue.push(text);
+            }
+        },
     };
     // Start the query
     const q = query({
@@ -311,16 +377,6 @@ async function handleCreate(cmd) {
     });
     session.query = q;
     sessions.set(tabId, session);
-    session._pushInput = (text) => {
-        if (inputResolve) {
-            const r = inputResolve;
-            inputResolve = null;
-            r(text);
-        }
-        else {
-            inputQueue.push(text);
-        }
-    };
     // Consume the async generator and emit events
     consumeQuery(tabId, q, session).catch((err) => {
         const error = err;
@@ -577,8 +633,21 @@ async function consumeQuery(tabId, q, sessionRef) {
             return;
         const current = sessions.get(tabId);
         if (current && current === sessionRef) {
+            // Resolve all pending permissions (matching handleKill cleanup)
+            if (sessionRef.pendingPermissions?.size > 0) {
+                for (const [, pending] of sessionRef.pendingPermissions) {
+                    pending.resolve({ behavior: "deny", message: "Session ended" });
+                }
+                sessionRef.pendingPermissions.clear();
+            }
+            if (sessionRef.pendingAskUser) {
+                sessionRef.pendingAskUser.resolve({ behavior: "deny", message: "Session ended" });
+                sessionRef.pendingAskUser = null;
+            }
             sessions.delete(tabId);
             autocompleteTimestamps.delete(tabId);
+            _batchBuf.delete(tabId);
+            _latestAutocompleteSeq.delete(tabId);
             emit({ evt: "exit", tabId, code: 0 });
         }
     }
@@ -615,6 +684,8 @@ function handleKill(cmd, silent = false) {
     session.query?.close();
     sessions.delete(cmd.tabId);
     autocompleteTimestamps.delete(cmd.tabId);
+    _batchBuf.delete(cmd.tabId);
+    _latestAutocompleteSeq.delete(cmd.tabId);
     // Silent mode: don't emit exit (used when replacing a session in handleCreate,
     // because the exit event would cause Rust to remove the Channel).
     if (!silent)
@@ -669,7 +740,7 @@ function handleAskUserResponse(cmd) {
     // with the user's answers so Claude sees them as if the tool succeeded.
     resolve({
         behavior: "deny",
-        message: `User answered the questions via Claude Code GUI:\n${answerLines.join("\n")}`,
+        message: `User answered the questions via Figtree UI:\n${answerLines.join("\n")}`,
     });
 }
 // Guard against re-entrant interrupts (rapid Ctrl+C)
@@ -708,6 +779,8 @@ async function handleInterrupt(cmd) {
         session.query?.close();
         sessions.delete(tabId);
         autocompleteTimestamps.delete(tabId);
+        _batchBuf.delete(tabId);
+        _latestAutocompleteSeq.delete(tabId);
         emit({ evt: "interrupted", tabId, sessionId });
         // Resume same session with validated config
         if (sessionId) {
@@ -773,8 +846,7 @@ async function handleListSessions(cmd) {
         const options = {};
         if (cmd.cwd)
             options.dir = cmd.cwd;
-        if (cmd.limit)
-            options.limit = cmd.limit;
+        options.limit = cmd.limit || DEFAULT_SESSION_LIMIT;
         if (cmd.offset)
             options.offset = cmd.offset;
         const sessionList = await listSessions(options);
@@ -803,8 +875,7 @@ async function handleGetMessages(cmd) {
         const options = {};
         if (cmd.dir)
             options.dir = cmd.dir;
-        if (cmd.limit)
-            options.limit = cmd.limit;
+        options.limit = Math.min(cmd.limit || MAX_MESSAGES_PER_PAGE, MAX_MESSAGES_PER_PAGE);
         if (cmd.offset)
             options.offset = cmd.offset;
         const messages = await getSessionMessages(cmd.sessionId, options);
@@ -832,6 +903,8 @@ let anthropicClientExpiresAt = 0; // 0 = no expiry (API key), else ms timestamp
 function readClaudeOAuthToken() {
     try {
         const home = process.env.USERPROFILE || process.env.HOME || "";
+        if (!home || home.startsWith("\\\\") || home.includes(".."))
+            return null;
         const credPath = join(home, ".claude", ".credentials.json");
         const creds = JSON.parse(readFileSync(credPath, "utf-8"));
         const oauth = creds?.claudeAiOauth;
@@ -867,35 +940,53 @@ function getAnthropicClient() {
     }
     return null;
 }
-// Rate limiting: max 10 calls per minute per session
+// Rate limiting: max 10 calls per minute per session (combined check + record)
 const autocompleteTimestamps = new Map(); // tabId → timestamp[]
-function isRateLimited(tabId) {
+function tryRecordAutocomplete(tabId) {
     const now = Date.now();
-    const timestamps = autocompleteTimestamps.get(tabId) || [];
-    // Remove timestamps older than 60s
-    const recent = timestamps.filter((t) => now - t < 60000);
-    autocompleteTimestamps.set(tabId, recent);
-    return recent.length >= 10;
-}
-function recordAutocompleteCall(tabId) {
-    const timestamps = autocompleteTimestamps.get(tabId) || [];
-    timestamps.push(Date.now());
-    autocompleteTimestamps.set(tabId, timestamps);
+    let timestamps = autocompleteTimestamps.get(tabId);
+    if (!timestamps) {
+        timestamps = [];
+        autocompleteTimestamps.set(tabId, timestamps);
+    }
+    // Evict stale entries if map grows beyond active sessions
+    if (autocompleteTimestamps.size > sessions.size + 10) {
+        for (const key of autocompleteTimestamps.keys()) {
+            if (!sessions.has(key))
+                autocompleteTimestamps.delete(key);
+        }
+    }
+    // Remove timestamps older than 60s in-place
+    let writeIdx = 0;
+    for (let i = 0; i < timestamps.length; i++) {
+        if (now - timestamps[i] < 60000)
+            timestamps[writeIdx++] = timestamps[i];
+    }
+    timestamps.length = writeIdx;
+    if (timestamps.length >= 10)
+        return false;
+    timestamps.push(now);
+    return true;
 }
 async function handleAutocomplete(cmd) {
     const { tabId, input, context, seq } = cmd;
+    // Track latest seq for debounce
+    _latestAutocompleteSeq.set(tabId, seq);
     // Check rate limit
-    if (isRateLimited(tabId)) {
+    if (!tryRecordAutocomplete(tabId)) {
         emit({ evt: "autocomplete", tabId, suggestions: [], seq });
         return;
     }
-    recordAutocompleteCall(tabId);
     try {
         const client = getAnthropicClient();
         if (!client) {
             emit({ evt: "autocomplete", tabId, suggestions: [], seq });
             return;
         }
+        // Debounce: yield to let newer commands arrive, skip if superseded
+        await new Promise(r => setTimeout(r, 50));
+        if (_latestAutocompleteSeq.get(tabId) !== seq)
+            return;
         const messages = [];
         // Add conversation context (last 2-3 messages)
         if (Array.isArray(context)) {
@@ -958,7 +1049,74 @@ async function handleAutocomplete(cmd) {
 }
 // ── Main loop: read JSON-lines from stdin ───────────────────────────
 const rl = createInterface({ input: process.stdin, terminal: false });
-rl.on("line", async (line) => {
+async function handleCommand(cmd) {
+    // Input validation
+    if ("tabId" in cmd && cmd.tabId) {
+        if (typeof cmd.tabId !== "string" || cmd.tabId.length > MAX_TABID_LENGTH) {
+            log("Rejecting command: invalid tabId");
+            return;
+        }
+    }
+    if ("text" in cmd && typeof cmd.text === "string") {
+        if (cmd.text.length > MAX_TEXT_LENGTH) {
+            emit({ evt: "error", tabId: cmd.tabId, code: "input_too_large", message: "Input text exceeds maximum length" });
+            return;
+        }
+    }
+    switch (cmd.cmd) {
+        // Commands that need per-tab serialization
+        case "create":
+            await withTabLock(cmd.tabId, () => handleCreate(cmd));
+            break;
+        case "resume":
+            await withTabLock(cmd.tabId, () => handleCreate(cmd));
+            break;
+        case "fork":
+            cmd.fork = true;
+            await withTabLock(cmd.tabId, () => handleCreate(cmd));
+            break;
+        case "interrupt":
+            await withTabLock(cmd.tabId, () => handleInterrupt(cmd));
+            break;
+        case "kill":
+            await withTabLock(cmd.tabId, () => Promise.resolve(handleKill(cmd)));
+            break;
+        // Commands that don't need locking (operate on pending callbacks or are stateless)
+        case "send":
+            handleSend(cmd);
+            break;
+        case "permission_response":
+            handlePermissionResponse(cmd);
+            break;
+        case "ask_user_response":
+            handleAskUserResponse(cmd);
+            break;
+        case "set_model":
+            await handleSetModel(cmd);
+            break;
+        case "set_perm_mode":
+            handleSetPermMode(cmd);
+            break;
+        case "list_sessions":
+            await handleListSessions(cmd);
+            break;
+        case "get_messages":
+            await handleGetMessages(cmd);
+            break;
+        case "autocomplete":
+            await handleAutocomplete(cmd);
+            break;
+        case "refreshCommands":
+            await handleRefreshCommands(cmd);
+            break;
+        default:
+            log("Unknown command:", cmd.cmd);
+            break;
+    }
+}
+// Fire-and-forget dispatch: commands for different tabs run concurrently,
+// commands for the same tab are serialized via withTabLock.
+rl.on("line", (line) => {
     let cmd;
     try {
         cmd = JSON.parse(line);
@@ -967,62 +1125,12 @@ rl.on("line", async (line) => {
         log("Invalid JSON:", line, "error:", err.message);
         return;
     }
-    try {
-        switch (cmd.cmd) {
-            case "create":
-                await handleCreate(cmd);
-                break;
-            case "send":
-                handleSend(cmd);
-                break;
-            case "resume":
-                await handleCreate(cmd);
-                break;
-            case "fork":
-                cmd.fork = true;
-                await handleCreate(cmd);
-                break;
-            case "interrupt":
-                await handleInterrupt(cmd);
-                break;
-            case "kill":
-                handleKill(cmd);
-                break;
-            case "permission_response":
-                handlePermissionResponse(cmd);
-                break;
-            case "ask_user_response":
-                handleAskUserResponse(cmd);
-                break;
-            case "set_model":
-                await handleSetModel(cmd);
-                break;
-            case "set_perm_mode":
-                handleSetPermMode(cmd);
-                break;
-            case "list_sessions":
-                await handleListSessions(cmd);
-                break;
-            case "get_messages":
-                await handleGetMessages(cmd);
-                break;
-            case "autocomplete":
-                await handleAutocomplete(cmd);
-                break;
-            case "refreshCommands":
-                await handleRefreshCommands(cmd);
-                break;
-            default:
-                log("Unknown command:", cmd.cmd);
-                break;
-        }
-    }
-    catch (err) {
+    void handleCommand(cmd).catch((err) => {
         log(`Error handling ${cmd.cmd}:`, err.message);
         if ("tabId" in cmd && cmd.tabId) {
             emit({ evt: "error", tabId: cmd.tabId, code: "handler_error", message: err.message });
         }
-    }
+    });
 });
 rl.on("close", () => {
     log("stdin closed, shutting down");
@@ -1039,27 +1147,43 @@ rl.on("close", () => {
         session.query?.close();
     }
     sessions.clear();
-    process.exit(0);
+    // Drain stdout before exiting to avoid losing flushed data
+    if (process.stdout.writableLength > 0) {
+        process.stdout.once("drain", () => process.exit(0));
+        setTimeout(() => process.exit(0), 500); // Safety timeout
+    }
+    else {
+        process.exitCode = 0;
+    }
 });
+let zodErrorCount = 0;
 process.on("uncaughtException", (err) => {
     log(`uncaughtException: ${err.message}\n${err.stack}`);
     if (err.name === "ZodError" || err.message?.includes("Zod")) {
-        log(`ZodError details (non-fatal): ${JSON.stringify(err.issues || err.errors || err, null, 2)}`);
-        return; // ZodErrors are non-fatal SDK schema issues — safe to continue
+        zodErrorCount++;
+        log(`ZodError #${zodErrorCount} (non-fatal): ${JSON.stringify(err.issues || err.errors || err, null, 2)}`);
+        if (zodErrorCount > 10) {
+            log("Too many ZodErrors — exiting for clean restart");
+            process.exit(1);
+        }
+        return;
     }
     // Unknown exceptions may corrupt shared state — exit for clean restart via try_restart
     log("Exiting due to unrecoverable exception");
     process.exit(1);
 });
-let unhandledRejectionCount = 0;
+let _unhandledRejections = [];
 process.on("unhandledRejection", (reason) => {
     const msg = reason instanceof Error ? `${reason.message}\n${reason.stack}` : String(reason);
     log(`unhandledRejection: ${msg}`);
-    unhandledRejectionCount++;
-    if (unhandledRejectionCount > 5) {
-        log("Too many unhandled rejections — exiting for clean restart via try_restart");
+    const now = Date.now();
+    _unhandledRejections.push(now);
+    // Only count rejections in the last 5 minutes
+    _unhandledRejections = _unhandledRejections.filter(t => now - t < 300_000);
+    if (_unhandledRejections.length > 5) {
+        log("Too many unhandled rejections in 5 minutes — exiting for clean restart");
         process.exit(1);
     }
 });
-log("Claude Code GUI sidecar started");
+log("Figtree sidecar started");
 emit({ evt: "ready", tabId: "_control" });
