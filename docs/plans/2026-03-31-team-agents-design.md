@@ -115,54 +115,60 @@ interface Tab {
 { "cmd": "kill_teammate", "tabId": "...", "agentId": "teammate-2" }
 ```
 
-## Frontend: TeamView (tmux-style Split View)
+## Frontend: Team Coordination Panel in RightSidebar
 
 ### Layout
 
+The lead agent's terminal stays full-width. No split view. Team activity is observed through a new tab in the existing RightSidebar (alongside Bookmarks, Minimap, Todos, AgentTree).
+
 ```
-+-- project (team) ------------------------------------------------- x -+
-|                                                    | Team Panel        |
-|  +- Lead -------------------+ +- code-reviewer ---+|                   |
-|  | > working on auth        | | > reviewing auth  || Tasks             |
-|  |   module refactor...     | |   Found 3 issues..|| [ ] Refactor auth |
-|  |                          | |                   || [x] Review code   |
-|  |                          | |                   || [ ] Write tests   |
-|  +-------- -----------------+ +-------------------+|                   |
-|  | test-writer -------------| |                   || Messages          |
-|  | > waiting for task...    | |                   || lead->reviewer:   |
-|  |                          | |                   ||  "check auth"     |
-|  |                          | |                   || reviewer->lead:   |
-|  +-------- -----------------+ +-------------------+|  "3 issues found" |
-+----------------------------------------------------+-------------------+
-| OPUS [1M]  |  max  |  skip all  |  team: 3 agents                     |
-+------------------------------------------------------------------------+
++-- project (team) -------------------------------------------- x -+
+|                                               | [B] [M] [T] [A] [Team] |
+| Lead terminal (full width XTermView)          |                   |
+|                                               | Team Panel        |
+| > working on auth module refactor...          |                   |
+| > delegated review to code-reviewer           | Members           |
+| > delegated tests to test-writer              | * Lead (working)  |
+|                                               | * reviewer (idle) |
+|                                               | * test-wr (working)|
+|                                               |                   |
+|                                               | Tasks             |
+|                                               | [x] Refactor auth |
+|                                               | [ ] Review code   |
+|                                               | [ ] Write tests   |
+|                                               |                   |
+|                                               | Messages          |
+|                                               | lead->reviewer:   |
+|                                               |  "check auth"     |
++-----------------------------------------------+-------------------+
+| OPUS [1M]  |  max  |  skip all  |  team: 3 agents                |
++---------------------------------------------------------------+
 ```
 
 ### Components
 
-- **TeamView.tsx** — Replaces AgentView when tab is in team mode. Contains:
-  - N `XTermView` panels in auto-grid (1=full, 2=side-by-side, 3-4=2x2)
-  - Each panel has header: agent name + role + status badge (working/idle/waiting)
-  - Panels resizable via drag handles
-- **TeamCoordinationPanel.tsx** — Right drawer (toggle Ctrl+B, reuses RightSidebar pattern):
-  - **Tasks tab**: Shared task list with status and assignments
-  - **Messages tab**: Chronological inter-agent message timeline
-  - **Members tab**: Team member list with status, model, role
+- **TeamPanel.tsx** — New tab in RightSidebar, showing:
+  - **Members section**: Team member list with status badge (working/idle/waiting/disconnected), model, role
+  - **Tasks section**: Shared task list with status and assignments
+  - **Messages section**: Chronological inter-agent message timeline, scrollable
+  - **Actions**: "Dissolve team" button to kill all teammates
+- **RightSidebar** — Extended with new "Team" tab icon (only visible when `teamState?.active`)
 - **InfoStrip** — Updated to show "team: N agents" in team mode
 
-### Transition: Single -> Team
+### Activation
 
-When SDK emits first `TaskStarted` with a new `agentId`:
+When SDK emits team events (TaskStarted with teammate agentId):
 1. Update `tab.teamState` with new member
-2. Swap `AgentView` -> `TeamView` (existing terminal becomes "Lead" panel, new panels added)
-3. Animation: panels slide in from right
+2. The "Team" tab icon appears in RightSidebar
+3. Auto-open the Team panel on first teammate join
+4. No layout change — lead terminal stays full-width
 
-### Transition: Team -> Single
+### Deactivation
 
-When all teammates terminate (tasks complete or killed):
-1. Layout reverts to single panel automatically
-2. Lead stays active, `teamState.active = false`
-3. User can also force: "Dissolve team" in Coordination Panel kills all teammates
+When all teammates terminate:
+1. `teamState.active = false`
+2. Team tab icon hides (or stays with "completed" state)
+3. Lead continues normally
 
 ## Sidecar & SDK Integration
 
