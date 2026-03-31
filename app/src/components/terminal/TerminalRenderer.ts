@@ -26,6 +26,8 @@ export class TerminalRenderer {
   private deferredUpdates: Block[] = [];
   /** Whether the last streamed chunk ended with a newline */
   private lastStreamedEndedWithNewline = false;
+  /** Whether user input was suspended at streaming start — restore at streamEnd */
+  private inputSuspendedForStreaming = false;
 
   constructor(
     private terminal: Terminal,
@@ -93,6 +95,8 @@ export class TerminalRenderer {
       return;
     }
 
+    // Suspend user's input line before writing output to prevent interleaving
+    const hadInput = this.inputManager?.suspendInputLine() ?? false;
     this.inputManager?.notifyOutput();
 
     // Streaming assistant block: don't render yet, text comes via streamAppend
@@ -100,10 +104,13 @@ export class TerminalRenderer {
       this.streamingActive = true;
       this.inputManager?.setStreamingActive(true);
       this.document.commitBlockLines(block, 0);
+      // Don't resume input line during streaming — it will be restored at streamEnd
+      if (hadInput) this.inputSuspendedForStreaming = true;
       return;
     }
 
     this.renderBlock(block);
+    if (hadInput) this.inputManager?.resumeInputLine();
   }
 
   private renderBlock(block: Block): void {
@@ -121,9 +128,8 @@ export class TerminalRenderer {
 
   /** Handle block update — defer if streaming is active */
   private onBlockUpdated(block: Block): void {
-    this.inputManager?.notifyOutput();
-
     if (this.streamingActive) {
+      this.inputManager?.notifyOutput();
       // Defer update — cursor position is unreliable during streaming
       if (!this.deferredUpdates.includes(block)) {
         this.deferredUpdates.push(block);
@@ -131,7 +137,10 @@ export class TerminalRenderer {
       return;
     }
 
+    const hadInput = this.inputManager?.suspendInputLine() ?? false;
+    this.inputManager?.notifyOutput();
     this.updateBlock(block);
+    if (hadInput) this.inputManager?.resumeInputLine();
   }
 
   /** In-place update of an existing block (if still in viewport) */
@@ -225,6 +234,10 @@ export class TerminalRenderer {
 
   /** Write streaming text directly to terminal (sanitized) */
   private writeStreaming(text: string): void {
+    // Suspend user's input line if it appeared since streaming started
+    if (this.inputManager?.suspendInputLine()) {
+      this.inputSuspendedForStreaming = true;
+    }
     this.inputManager?.notifyOutput();
     const sanitized = sanitizeAgentText(text);
     // Trim trailing whitespace per line (but preserve newlines)
@@ -261,6 +274,12 @@ export class TerminalRenderer {
     for (const block of deferred) {
       this.updateBlock(block);
     }
+
+    // Restore user's input line if it was suspended during streaming
+    if (this.inputSuspendedForStreaming) {
+      this.inputSuspendedForStreaming = false;
+      this.inputManager?.resumeInputLine();
+    }
   }
 
   // ── Full redraw ─────────────────────────────────────────────────
@@ -270,6 +289,7 @@ export class TerminalRenderer {
     if (this.streamingActive) {
       this.document.forceFinalize();
       this.streamingActive = false;
+      this.inputSuspendedForStreaming = false;
       this.inputManager?.setStreamingActive(false);
       this.deferredUpdates = [];
     }

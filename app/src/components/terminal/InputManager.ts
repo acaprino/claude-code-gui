@@ -51,6 +51,9 @@ export class InputManager {
   private spinnerPauseTimer: ReturnType<typeof setTimeout> | null = null;
   private streamingActive = false;
 
+  // Input line tracking — true when user's prompt line is rendered on screen during processing
+  private inputLineOnScreen = false;
+
   // Disposables
   private disposables: { dispose(): void }[] = [];
 
@@ -75,6 +78,7 @@ export class InputManager {
       clearTimeout(this.spinnerPauseTimer);
       this.spinnerPauseTimer = null;
     }
+    this.inputLineOnScreen = false;
     this.mode = mode;
     if (mode === "normal") {
       this.renderPrompt();
@@ -137,6 +141,31 @@ export class InputManager {
     }, 600);
   }
 
+  /**
+   * Temporarily remove the user's input line from the terminal so the renderer
+   * can write output without interleaving. Returns true if an input line was cleared.
+   */
+  suspendInputLine(): boolean {
+    if (!this.inputLineOnScreen || this.buffer.length === 0) return false;
+    this.terminal.write(`\r${ERASE_LINE}`);
+    this.inputLineOnScreen = false;
+    return true;
+  }
+
+  /**
+   * Re-render the user's input line after the renderer wrote output.
+   * Only call after suspendInputLine() returned true.
+   */
+  resumeInputLine(): void {
+    if (this.buffer.length === 0 || this.mode !== "processing") return;
+    const prompt = `${fg(this.palette.accent)}${BOLD}${ICON.prompt}${RESET} `;
+    this.terminal.write(`${prompt}${this.buffer}`);
+    if (this.cursorPos < this.buffer.length) {
+      this.terminal.write(cursorColumn(this.cursorPos + 3));
+    }
+    this.inputLineOnScreen = true;
+  }
+
   dispose(): void {
     this.stopSpinner();
     if (this.spinnerPauseTimer) {
@@ -176,6 +205,11 @@ export class InputManager {
         // Clear the current line
         this.buffer = "";
         this.cursorPos = 0;
+        this.inputLineOnScreen = false;
+        // During streaming, only clear buffer — don't touch terminal
+        if (this.streamingActive && this.mode === "processing") {
+          return;
+        }
         if (this.mode === "processing") {
           // Go back to spinner
           this.terminal.write(`\r${ERASE_LINE}`);
@@ -252,7 +286,9 @@ export class InputManager {
     if (data === "\x0b") {
       // Ctrl+K — kill to end of line
       this.buffer = this.buffer.slice(0, this.cursorPos);
+      if (this.streamingActive && this.mode === "processing") return; // buffer-only during streaming
       if (this.mode === "processing" && this.buffer.length === 0) {
+        this.inputLineOnScreen = false;
         this.terminal.write(`\r${ERASE_LINE}`);
         this.startSpinner();
         return;
@@ -265,7 +301,9 @@ export class InputManager {
       // Ctrl+U — clear line
       this.buffer = "";
       this.cursorPos = 0;
+      if (this.streamingActive && this.mode === "processing") return; // buffer-only during streaming
       if (this.mode === "processing") {
+        this.inputLineOnScreen = false;
         this.terminal.write(`\r${ERASE_LINE}`);
         this.startSpinner();
         return;
@@ -302,10 +340,24 @@ export class InputManager {
 
   private submit(): void {
     const text = this.buffer.trim();
-    this.terminal.write("\r\n");
     this.buffer = "";
     this.cursorPos = 0;
     this.historyIdx = -1;
+    this.inputLineOnScreen = false;
+
+    // During streaming, submit silently — don't write to terminal or start spinner
+    if (this.streamingActive && this.mode === "processing") {
+      if (text) {
+        if (this.history.length === 0 || this.history[this.history.length - 1] !== text) {
+          this.history.push(text);
+          if (this.history.length > 100) this.history.shift();
+        }
+        this.callbacks.onSubmit(text);
+      }
+      return;
+    }
+
+    this.terminal.write("\r\n");
     if (text) {
       // Add to history (avoid duplicates at top)
       if (this.history.length === 0 || this.history[this.history.length - 1] !== text) {
@@ -324,6 +376,14 @@ export class InputManager {
   }
 
   private insertText(text: string): void {
+    // During streaming, only buffer — don't echo to terminal.
+    // The renderer will restore the input line when streaming ends.
+    if (this.streamingActive && this.mode === "processing") {
+      this.buffer = this.buffer.slice(0, this.cursorPos) + text + this.buffer.slice(this.cursorPos);
+      this.cursorPos += text.length;
+      return;
+    }
+
     // If typing while processing, pause spinner and show prompt.
     // Batch the newline + redraw into a single terminal.write to prevent
     // interleaving with concurrent streaming writes from TerminalRenderer.
@@ -344,14 +404,19 @@ export class InputManager {
     const line = `\r${ERASE_LINE}${prompt}${this.buffer}`;
     const cursor = this.cursorPos < this.buffer.length ? cursorColumn(this.cursorPos + 3) : "";
     this.terminal.write(prefix + line + cursor);
+    if (this.mode === "processing") {
+      this.inputLineOnScreen = true;
+    }
   }
 
   private backspace(): void {
     if (this.cursorPos <= 0) return;
     this.buffer = this.buffer.slice(0, this.cursorPos - 1) + this.buffer.slice(this.cursorPos);
     this.cursorPos--;
+    if (this.streamingActive && this.mode === "processing") return; // buffer-only during streaming
     if (this.mode === "processing" && this.buffer.length === 0) {
       // Cleared all text while processing — erase prompt line, restart spinner
+      this.inputLineOnScreen = false;
       this.terminal.write(`\r${ERASE_LINE}`);
       this.startSpinner();
       return;
@@ -362,7 +427,9 @@ export class InputManager {
   private deleteChar(): void {
     if (this.cursorPos >= this.buffer.length) return;
     this.buffer = this.buffer.slice(0, this.cursorPos) + this.buffer.slice(this.cursorPos + 1);
+    if (this.streamingActive && this.mode === "processing") return; // buffer-only during streaming
     if (this.mode === "processing" && this.buffer.length === 0) {
+      this.inputLineOnScreen = false;
       this.terminal.write(`\r${ERASE_LINE}`);
       this.startSpinner();
       return;
@@ -379,7 +446,9 @@ export class InputManager {
     while (pos > 0 && this.buffer[pos - 1] !== " ") pos--;
     this.buffer = this.buffer.slice(0, pos) + this.buffer.slice(this.cursorPos);
     this.cursorPos = pos;
+    if (this.streamingActive && this.mode === "processing") return; // buffer-only during streaming
     if (this.mode === "processing" && this.buffer.length === 0) {
+      this.inputLineOnScreen = false;
       this.terminal.write(`\r${ERASE_LINE}`);
       this.startSpinner();
       return;
@@ -391,17 +460,22 @@ export class InputManager {
     const newPos = Math.max(0, Math.min(this.buffer.length, this.cursorPos + delta));
     if (newPos !== this.cursorPos) {
       this.cursorPos = newPos;
-      this.terminal.write(cursorColumn(this.cursorPos + 3)); // +3 for "❯ " prompt (2 chars + 1-based column)
+      if (!(this.streamingActive && this.mode === "processing")) {
+        this.terminal.write(cursorColumn(this.cursorPos + 3)); // +3 for "❯ " prompt (2 chars + 1-based column)
+      }
     }
   }
 
   private moveCursorTo(pos: number): void {
     this.cursorPos = Math.max(0, Math.min(this.buffer.length, pos));
-    this.terminal.write(cursorColumn(this.cursorPos + 3));
+    if (!(this.streamingActive && this.mode === "processing")) {
+      this.terminal.write(cursorColumn(this.cursorPos + 3));
+    }
   }
 
   private historyPrev(): void {
     if (this.history.length === 0) return;
+    if (this.streamingActive && this.mode === "processing") return; // no history during streaming
     if (this.historyIdx === -1) {
       this.historyStash = this.buffer;
       this.historyIdx = this.history.length - 1;
@@ -417,6 +491,7 @@ export class InputManager {
 
   private historyNext(): void {
     if (this.historyIdx === -1) return;
+    if (this.streamingActive && this.mode === "processing") return; // no history during streaming
     if (this.historyIdx < this.history.length - 1) {
       this.historyIdx++;
       this.buffer = this.history[this.historyIdx];
@@ -445,8 +520,9 @@ export class InputManager {
     this.completionInFlight = true;
     try {
       const suggestions = await this.callbacks.onAutocomplete(token);
-      // Bail if buffer changed while waiting (user typed during autocomplete)
+      // Bail if buffer changed while waiting, or streaming started during await
       if (this.buffer !== snapshotBuffer || this.cursorPos !== snapshotCursor) return;
+      if (this.streamingActive && this.mode === "processing") return;
       if (suggestions.length === 0) return;
       if (suggestions.length === 1) {
         // Single match — complete inline
@@ -491,10 +567,14 @@ export class InputManager {
   }
 
   private redrawLine(): void {
+    if (this.streamingActive && this.mode === "processing") return; // suppress during streaming
     const prompt = `${fg(this.palette.accent)}${BOLD}${ICON.prompt}${RESET} `;
     this.terminal.write(`\r${ERASE_LINE}${prompt}${this.buffer}`);
     if (this.cursorPos < this.buffer.length) {
       this.terminal.write(cursorColumn(this.cursorPos + 3));
+    }
+    if (this.mode === "processing") {
+      this.inputLineOnScreen = true;
     }
   }
 
