@@ -16,5 +16,11 @@
     "yellow": "#AA582D",
     "cursor": "#05262D",
     "selection": "#D5DEE0"
+  },
+  "layout": {
+    "radiusSm": "5px",
+    "radiusMd": "10px",
+    "radiusLg": "12px",
+    "hoverOpacity": 10
   }
 }
