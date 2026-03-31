@@ -493,6 +493,7 @@
 .tv-bottom-perm--acceptEdits { color: var(--yellow); }
 .tv-bottom-perm--plan { color: var(--green); }
 
+.tv-bottom-team { color: var(--green); font-size: var(--text-xs); }
 .tv-bottom-cost { color: var(--green); font-weight: 600; }
 .tv-bottom-stat { color: var(--text-dim); }
 .tv-bottom-warn { color: var(--yellow); }

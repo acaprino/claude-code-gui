@@ -11,6 +11,7 @@ export async function spawnAgent(
   plugins: string[],
   disabledHooks: string[],
   apiBaseUrl: string,
+  agentName: string,
   onEvent: (event: AgentEvent) => void,
 ): Promise<Channel<AgentEvent>> {
   const channel = new Channel<AgentEvent>();
@@ -26,6 +27,7 @@ export async function spawnAgent(
     plugins,
     disabledHooks,
     apiBaseUrl,
+    agentName,
     onEvent: channel,
   });
 

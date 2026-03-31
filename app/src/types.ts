@@ -25,6 +25,10 @@ export interface Tab {
   resumeSessionId?: string;
   /** When set, Terminal will call forkAgent() instead of spawnAgent(). Consumed on mount. */
   forkSessionId?: string;
+  /** When set, session runs as this custom subagent (passed to SDK agent option). */
+  agentName?: string;
+  /** Team coordination state — set when Agent Teams is active. */
+  teamState?: TeamState;
   /** Session ID for transcript viewer tabs. */
   transcriptSessionId?: string;
 }
@@ -220,6 +224,44 @@ export interface AgentInfoSDK {
   name: string;
   description: string;
   model?: string;
+}
+
+/** Agent definition loaded from .claude/agents/ markdown files. */
+export interface AgentDefinition {
+  name: string;
+  description: string;
+  model?: string;
+  source: "project" | "global";
+  filePath: string;
+}
+
+export interface TeamMember {
+  agentId: string;
+  name: string;
+  role: "lead" | "teammate";
+  status: "working" | "idle" | "waiting" | "disconnected";
+  model?: string;
+}
+
+export interface TeamTask {
+  id: string;
+  description: string;
+  assignee?: string;
+  status: "pending" | "in_progress" | "completed";
+}
+
+export interface InterAgentMsg {
+  from: string;
+  to: string;
+  content: string;
+  timestamp: number;
+}
+
+export interface TeamState {
+  active: boolean;
+  members: TeamMember[];
+  tasks: TeamTask[];
+  messages: InterAgentMsg[];
 }
 
 /** A single question in an AskUserQuestion tool call */

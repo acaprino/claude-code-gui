@@ -201,7 +201,7 @@ function AppContent() {
   }, [addTabAndResetFilter, toggleAboutTab, toggleUsageTab, toggleSystemPromptTab, toggleSessionsTab, toggleSettingsTab, updateSettings, safeCloseTab, activeTabId, nextTab, prevTab]);
 
   const handleLaunch = useCallback(
-    (tabId: string, projectPath: string, projectName: string, modelIdx: number, effortIdx: number, permModeIdx: number, autocompact: boolean, temporary?: boolean) => {
+    (tabId: string, projectPath: string, projectName: string, modelIdx: number, effortIdx: number, permModeIdx: number, autocompact: boolean, temporary?: boolean, agentName?: string) => {
       updateTab(tabId, {
         type: "agent",
         projectPath,
@@ -211,6 +211,7 @@ function AppContent() {
         permModeIdx,
         autocompact,
         temporary: temporary || false,
+        agentName,
       });
     },
     [updateTab],
@@ -483,6 +484,7 @@ function AppContent() {
                     plugins={pluginPaths}
                     disabledHooks={settings?.disabled_hooks ?? []}
                     apiBaseUrl={settings?.api_base_url || ""}
+                    agentName={tab.agentName}
                     resumeSessionId={tab.resumeSessionId}
                     forkSessionId={tab.forkSessionId}
                     onConfigChange={handleConfigChange}

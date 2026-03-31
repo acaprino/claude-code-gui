@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef, memo } from "react";
 import { open } from "@tauri-apps/plugin-shell";
+import { invoke } from "@tauri-apps/api/core";
 import { useProjectsContext } from "../contexts/ProjectsContext";
 import ProjectList from "./ProjectList";
 import SessionConfig from "./SessionConfig";
@@ -7,6 +8,7 @@ import InfoStrip from "./InfoStrip";
 import CreateProjectModal from "./modals/CreateProjectModal";
 import LabelProjectModal from "./modals/LabelProjectModal";
 import QuickLaunchModal from "./modals/QuickLaunchModal";
+import type { AgentDefinition } from "../types";
 import { ProjectInfo, DEFAULT_MODELS as MODELS, DEFAULT_EFFORTS as EFFORTS, SORT_ORDERS, PERM_MODES } from "../types";
 import "./NewTabPage.css";
 
@@ -21,6 +23,7 @@ interface NewTabPageProps {
     permModeIdx: number,
     autocompact: boolean,
     temporary?: boolean,
+    agentName?: string,
   ) => void;
   onRequestClose: (tabId: string) => void;
   onOpenSystemPrompts: () => void;
@@ -48,6 +51,8 @@ function NewTabPage({ tabId, onLaunch, onRequestClose, onOpenSystemPrompts,
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [launching, setLaunching] = useState(false);
   const [activeModal, setActiveModal] = useState<ModalType>(null);
+  const [availableAgents, setAvailableAgents] = useState<AgentDefinition[]>([]);
+  const [selectedAgent, setSelectedAgent] = useState<string>("");
 
   // R3: Store frequently-changing values in refs for stable keyboard handler
   const projectsRef = useRef(projects);
@@ -59,8 +64,10 @@ function NewTabPage({ tabId, onLaunch, onRequestClose, onOpenSystemPrompts,
   const onRequestCloseRef = useRef(onRequestClose);
   const recordUsageRef = useRef(recordUsage);
   const activeModalRef = useRef(activeModal);
+  const selectedAgentRef = useRef(selectedAgent);
 
   useEffect(() => { projectsRef.current = projects; }, [projects]);
+  useEffect(() => { selectedAgentRef.current = selectedAgent; }, [selectedAgent]);
   useEffect(() => { selectedIdxRef.current = selectedIdx; }, [selectedIdx]);
   useEffect(() => { filterRef.current = filter; }, [filter]);
   useEffect(() => { launchingRef.current = launching; }, [launching]);
@@ -75,6 +82,18 @@ function NewTabPage({ tabId, onLaunch, onRequestClose, onOpenSystemPrompts,
       setSelectedIdx(projects.length - 1);
     }
   }, [projects.length, selectedIdx]);
+
+  useEffect(() => {
+    const project = projects[selectedIdx];
+    if (!project) {
+      setAvailableAgents([]);
+      setSelectedAgent("");
+      return;
+    }
+    invoke<AgentDefinition[]>("list_agent_definitions", { projectPath: project.path })
+      .then(setAvailableAgents)
+      .catch(() => setAvailableAgents([]));
+  }, [projects, selectedIdx]);
 
   const launchProject = useCallback(
     async (project: ProjectInfo) => {
@@ -92,6 +111,8 @@ function NewTabPage({ tabId, onLaunch, onRequestClose, onOpenSystemPrompts,
         currentSettings.effort_idx,
         currentSettings.perm_mode_idx,
         currentSettings.autocompact,
+        undefined,
+        selectedAgentRef.current || undefined,
       );
     },
     [tabId, onLaunch],
@@ -253,6 +274,23 @@ function NewTabPage({ tabId, onLaunch, onRequestClose, onOpenSystemPrompts,
   return (
     <div className="new-tab-page">
       <SessionConfig settings={settings} onUpdate={updateSettings} />
+      {availableAgents.length > 0 && (
+        <div className="ntab-agent-row">
+          <span className="ntab-agent-label">Agent:</span>
+          <select
+            className="ntab-agent-select"
+            value={selectedAgent}
+            onChange={(e) => setSelectedAgent(e.target.value)}
+          >
+            <option value="">Default (no agent)</option>
+            {availableAgents.map(a => (
+              <option key={a.name} value={a.name} title={a.description}>
+                {a.name}{a.source === "global" ? " (global)" : ""}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       <ProjectList
         projects={projects}
         selectedIdx={selectedIdx}

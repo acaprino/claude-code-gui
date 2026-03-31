@@ -12,7 +12,7 @@ import { useCallback, useDeferredValue, useEffect, useMemo, useReducer, useRef, 
 import { spawnAgent, resumeAgent, forkAgent, sendAgentMessage, killAgent, interruptAgent, respondPermission, respondAskUser, refreshCommands, runClaudeCommand, getAgentMessages, setAgentPermMode, setAgentModel } from "./useAgentSession";
 import { open as shellOpen } from "@tauri-apps/plugin-shell";
 import { PERM_MODES, DEFAULT_MODELS, DEFAULT_EFFORTS } from "../types";
-import type { AgentEvent, Attachment, ChatMessage, PermissionSuggestion, SlashCommand, AgentInfoSDK, ModelInfoSDK } from "../types";
+import type { AgentEvent, Attachment, ChatMessage, PermissionSuggestion, SlashCommand, AgentInfoSDK, ModelInfoSDK, TeamState, TeamTask } from "../types";
 import { open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 import { sanitizeInput } from "../utils/sanitizeInput";
@@ -103,6 +103,7 @@ export interface SessionControllerProps {
   apiBaseUrl?: string;
   resumeSessionId?: string;
   forkSessionId?: string;
+  agentName?: string;
 }
 
 // ── Hook Return ──────────────────────────────────────────────────
@@ -113,6 +114,7 @@ export interface SessionController {
   inputState: "idle" | "awaiting_input" | "processing";
   stats: SessionStats;
   agentTasks: import("../types").AgentTask[];
+  teamState: TeamState;
   sdkCommands: SlashCommand[];
   sdkAgents: AgentInfoSDK[];
   /** Models reported by SDK — empty until first session connects */
@@ -153,7 +155,7 @@ export function useSessionController(props: SessionControllerProps): SessionCont
   const {
     tabId, projectPath, modelIdx, effortIdx, permModeIdx, systemPrompt,
     isActive, onSessionCreated, onNewOutput, onExit, onError, onTaglineChange,
-    plugins = [], disabledHooks = [], apiBaseUrl = "", resumeSessionId, forkSessionId,
+    plugins = [], disabledHooks = [], apiBaseUrl = "", resumeSessionId, forkSessionId, agentName,
   } = props;
 
   const disabledHooksRef = useRef(disabledHooks);
@@ -193,6 +195,7 @@ export function useSessionController(props: SessionControllerProps): SessionCont
   const streaming = useStreamingText();
   const thinking = useThinkingText();
   const agentTasksHook = useAgentTasks();
+  const [teamState, setTeamState] = useState<TeamState>({ active: false, members: [], tasks: [], messages: [] });
 
   // Callback refs to avoid stale closures
   const onSessionCreatedRef = useRef(onSessionCreated);
@@ -416,10 +419,36 @@ export function useSessionController(props: SessionControllerProps): SessionCont
         document.handleTodo(event.todos);
       } else if (event.type === "taskStarted") {
         agentTasksHook.onTaskStarted(event.taskId, event.description, event.taskType);
+        setTeamState(prev => {
+          const newTask: TeamTask = { id: event.taskId, description: event.description, assignee: event.taskId, status: "in_progress" };
+          const memberExists = prev.members.some(m => m.agentId === event.taskId);
+          const newMembers = memberExists ? prev.members.map(m =>
+            m.agentId === event.taskId ? { ...m, status: "working" as const } : m
+          ) : [...prev.members, { agentId: event.taskId, name: event.taskType || event.taskId, role: "teammate" as const, status: "working" as const }];
+          return { active: true, members: newMembers, tasks: [...prev.tasks, newTask], messages: prev.messages };
+        });
       } else if (event.type === "taskProgress") {
         agentTasksHook.onTaskProgress(event.taskId, event.description, event.totalTokens, event.toolUses, event.durationMs, event.lastToolName, event.summary);
+        setTeamState(prev => ({
+          ...prev,
+          tasks: prev.tasks.map(t => t.id === event.taskId ? { ...t, description: event.summary || t.description } : t),
+          members: prev.members.map(m => m.agentId === event.taskId ? { ...m, status: "working" as const } : m),
+        }));
       } else if (event.type === "taskNotification") {
         agentTasksHook.onTaskNotification(event.taskId, event.status, event.summary, event.totalTokens, event.toolUses, event.durationMs);
+        setTeamState(prev => {
+          const taskStatus = event.status === "completed" ? "completed" as const : "pending" as const;
+          const memberStatus = event.status === "completed" ? "idle" as const : event.status === "failed" ? "disconnected" as const : "idle" as const;
+          const updated = {
+            ...prev,
+            tasks: prev.tasks.map(t => t.id === event.taskId ? { ...t, status: taskStatus, description: event.summary || t.description } : t),
+            members: prev.members.map(m => m.agentId === event.taskId ? { ...m, status: memberStatus } : m),
+            messages: [...prev.messages, { from: event.taskId, to: "lead", content: event.summary, timestamp: Date.now() }],
+          };
+          const allDone = updated.members.every(m => m.status === "idle" || m.status === "disconnected");
+          if (allDone && updated.members.length > 0) updated.active = false;
+          return updated;
+        });
       } else if (event.type === "rateLimit") {
         dispatchStats({ type: "rateLimit", utilization: event.utilization });
       } else if (event.type === "commandsInit") {
@@ -486,7 +515,7 @@ export function useSessionController(props: SessionControllerProps): SessionCont
         ? resumeAgent(tabId, resumeSessionId, projectPath, modelId, effortId, permMode, plugins, disabledHooksRef.current, apiBaseUrl, handleAgentEvent)
         : forkSessionId
           ? forkAgent(tabId, forkSessionId, projectPath, modelId, effortId, permMode, plugins, disabledHooksRef.current, apiBaseUrl, handleAgentEvent)
-          : spawnAgent(tabId, projectPath, modelId, effortId, sanitizeInput(systemPrompt), permMode, plugins, disabledHooksRef.current, apiBaseUrl, handleAgentEvent);
+          : spawnAgent(tabId, projectPath, modelId, effortId, sanitizeInput(systemPrompt), permMode, plugins, disabledHooksRef.current, apiBaseUrl, agentName || "", handleAgentEvent);
 
       launchPromise
         .then((channel) => {
@@ -814,7 +843,7 @@ export function useSessionController(props: SessionControllerProps): SessionCont
 
   return {
     messages, displayItems, deferredMessages,
-    inputState, stats, agentTasks: agentTasksHook.tasks, sdkCommands, sdkAgents, sdkModels,
+    inputState, stats, agentTasks: agentTasksHook.tasks, teamState, sdkCommands, sdkAgents, sdkModels,
     models, efforts, hasUnresolvedPermission,
     queueLength, backgrounded,
     streamingTextRef: streaming.textRef, streamingIdRef: streaming.idRef, streamingTick: streaming.tick,

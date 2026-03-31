@@ -3,6 +3,7 @@
 #[macro_use]
 mod logging;
 
+mod agents;
 mod commands;
 mod marketplace;
 mod paths;
@@ -189,6 +190,7 @@ fn main() {
             commands::set_marketplace_global,
             commands::write_text_file,
             autocomplete::autocomplete_files,
+            agents::list_agent_definitions,
         ])
         .on_window_event(move |window, event| {
             if let tauri::WindowEvent::CloseRequested { .. } = event {

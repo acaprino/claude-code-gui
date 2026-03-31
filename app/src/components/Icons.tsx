@@ -191,6 +191,18 @@ export function IconPencil({ size = 16, ...p }: IconProps) {
   );
 }
 
+/** Team — connected people network */
+export function IconTeam() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="8" cy="5" r="2" />
+      <circle cx="4" cy="10" r="1.5" />
+      <circle cx="12" cy="10" r="1.5" />
+      <path d="M8 7v1.5M6 9.5l-1 .5M10 9.5l1 .5" />
+    </svg>
+  );
+}
+
 /** Gear — settings */
 export function IconGear({ size = 16, ...p }: IconProps) {
   return (

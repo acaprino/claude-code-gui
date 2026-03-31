@@ -256,6 +256,13 @@ export default memo(function XTermView(props: SessionViewProps) {
   // ── Sidebar toggle ──
   const toggleSidebar = useCallback(() => setSidebarOpen(prev => !prev), []);
 
+  // ── Auto-open sidebar when team becomes active ──
+  useEffect(() => {
+    if (ctrl.teamState?.active && !sidebarOpen) {
+      setSidebarOpen(true);
+    }
+  }, [ctrl.teamState?.active]);
+
   // ── WebGL addon lifecycle: load when active, dispose when inactive to prevent context exhaustion ──
   useEffect(() => {
     const term = termRef.current;
@@ -318,6 +325,7 @@ export default memo(function XTermView(props: SessionViewProps) {
             agentTasks={agentTasks}
             onScrollToMessage={() => {/* TODO: Phase 4 - scrollToLine */}}
             scrollContainerRef={{ current: null }}
+            teamState={ctrl.teamState}
           />
         )}
       </div>
@@ -342,6 +350,12 @@ export default memo(function XTermView(props: SessionViewProps) {
           title="Click to cycle permission mode (Tab)"
           onClick={() => onConfigChange?.({ permModeIdx: (permModeIdx + 1) % PERM_MODES.length })}
         >{PERM_MODES[permModeIdx]?.display || "plan"}</button>
+        {ctrl.teamState?.active && (
+          <>
+            <span className="tv-bottom-sep">|</span>
+            <span className="tv-bottom-team">team: {ctrl.teamState.members.length} agent{ctrl.teamState.members.length !== 1 ? "s" : ""}</span>
+          </>
+        )}
         {stats.cost > 0 && (
           <>
             <span className="tv-bottom-sep">{"\u00b7"}</span>

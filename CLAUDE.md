@@ -22,7 +22,7 @@ A Windows-only Tauri 2 desktop app for selecting and launching Claude Code Agent
 ## Key Paths
 
 - `app/src/components/` - TabBar, TabSidebar, TitleBar, AgentView, ProjectList, InfoStrip, SessionConfig, NewTabPage, AboutPage, UsagePage, SystemPromptPage, SettingsPage, SessionBrowser, SessionPanel, TranscriptView, Modal, ErrorBoundary, AsciiLogo, FolderTree, SegmentedControl, ShortcutsOverlay, OnboardingOverlay, Icons, GsdPrimitives, XTermView
-- `app/src/components/chat/` - ChatInput, MessageBubble, ToolCard, PermissionCard, ErrorCard, AskQuestionCard, ThinkingBlock, ThinkingPanel, ResultBar, RightSidebar, MinimapPanel, BookmarkPanel, TodoPanel, AgentTreePanel, ToolGroup, DiffView, AttachmentChip, CommandMenu, MentionMenu
+- `app/src/components/chat/` - ChatInput, MessageBubble, ToolCard, PermissionCard, ErrorCard, AskQuestionCard, ThinkingBlock, ThinkingPanel, ResultBar, RightSidebar, MinimapPanel, BookmarkPanel, TodoPanel, AgentTreePanel, TeamPanel, ToolGroup, DiffView, AttachmentChip, CommandMenu, MentionMenu
 - `app/src/components/modals/` - CreateProjectModal, LabelProjectModal, QuickLaunchModal
 - `app/src/components/terminal/` - TerminalDocument, TerminalRenderer, InputManager, AnsiUtils, TermToolLine, blocks/, themes
 - `app/src/hooks/` - useTabManager, useProjects, useAgentSession, useSessionController, useBufferedText, useAgentTasks
@@ -31,7 +31,7 @@ A Windows-only Tauri 2 desktop app for selecting and launching Claude Code Agent
 - `app/src/contexts/ThemesContext.tsx` - Runtime theme loading
 - `app/src/themes.ts` - Theme application to CSS variables
 - `app/src/types.ts` - Type definitions, model/effort/sort/theme constants, AgentEvent types
-- `app/src-tauri/src/` - Rust backend: main.rs, sidecar.rs, projects.rs, commands.rs, prompts.rs, usage_stats.rs, marketplace.rs, autocomplete.rs, logging.rs, watcher.rs, paths.rs, themes.rs
+- `app/src-tauri/src/` - Rust backend: main.rs, sidecar.rs, projects.rs, commands.rs, prompts.rs, usage_stats.rs, marketplace.rs, autocomplete.rs, logging.rs, watcher.rs, paths.rs, themes.rs, agents.rs
 - `sidecar/sidecar.js` - Node.js process running Agent SDK, communicates with Rust via JSON-lines
 
 For detailed architecture, IPC protocol, and development guide, see `docs/TECHNICAL.md`.
@@ -104,6 +104,13 @@ CSS custom properties in `App.css` `:root`:
 - `hasNewOutput` updates are guarded — the tab array is only recreated once per new-output burst, not on every chunk.
 - Singleton pages (AboutPage, UsagePage, SystemPromptPage, SettingsPage, SessionBrowser, SessionPanel, TranscriptView) are lazy-loaded via `React.lazy()`.
 - MinimapPanel uses DOM-based rendering with `<div>` elements and CSS variable colors.
+
+### Agent Teams (experimental)
+- Enabled via `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` env var in sidecar.
+- Lead agent terminal stays full-width; teammate activity shown in RightSidebar "Team" tab.
+- Team state tracked from SDK TaskStarted/TaskProgress/TaskNotification events.
+- Custom subagents selectable at launch via `.claude/agents/*.md` files (scanned by `agents.rs`).
+- `agentName` field on Tab type threads through to SDK `query({ agent: "name" })`.
 
 ### CSS Architecture
 - All colors use `color-mix()` with CSS variables for theme adaptability — no hardcoded rgba values.

@@ -394,6 +394,7 @@ pub fn spawn_agent(
     plugins: Vec<String>,
     disabled_hooks: Vec<String>,
     api_base_url: String,
+    agent_name: String,
     on_event: Channel<AgentEvent>,
 ) -> Result<(), String> {
     if system_prompt.len() > 100_000 {
@@ -412,6 +413,7 @@ pub fn spawn_agent(
         "plugins": plugins,
         "disabledHooks": disabled_hooks,
         "apiBaseUrl": opt_str(&api_base_url),
+        "agentName": opt_str(&agent_name),
     }))
 }
 
