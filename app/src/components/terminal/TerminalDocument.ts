@@ -276,9 +276,9 @@ export class TerminalDocument {
   }
 
   handleThinking(text: string): void {
-    // Thinking is shown in the sidebar panel — no terminal block needed
     if (!this.thinkingBlock) {
       this.thinkingBlock = new ThinkingBlock(this.nextId(), "");
+      this.addBlock(this.thinkingBlock);
     }
     this.thinkingBlock.append(text);
     this.emit({ type: "thinkingAppend", block: this.thinkingBlock, text });

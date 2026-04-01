@@ -74,11 +74,9 @@ export class TerminalRenderer {
         this.onStreamEnd();
         break;
       case "thinkingAppend":
-        // Skip terminal update while user is typing — prevents visible flicker
-        // from the suspend/update/resume cycle. The thinking line count catches
-        // up when thinking finalizes or when the user submits.
-        if (this.inputManager?.hasInputOnScreen()) break;
-        this.onBlockUpdated(event.block);
+        // No terminal update — the thinking line is static ("Thinking...").
+        // Thinking text is shown in the sidebar panel; the terminal line
+        // only updates once when thinking ends (via blockUpdated → "Thought for Xs").
         break;
       case "cleared":
         this.terminal.clear();
@@ -102,6 +100,11 @@ export class TerminalRenderer {
     // Suspend user's input line before writing output to prevent interleaving
     const hadInput = this.inputManager?.suspendInputLine() ?? false;
     this.inputManager?.notifyOutput();
+
+    // Thinking block: suppress spinner while thinking is active
+    if (block.type === "thinking") {
+      this.inputManager?.setThinkingActive(true);
+    }
 
     // Streaming assistant block: don't render yet, text comes via streamAppend
     if (block.type === "assistant" && (block as { streaming?: boolean }).streaming) {
@@ -132,6 +135,9 @@ export class TerminalRenderer {
 
   /** Handle block update — defer if streaming is active */
   private onBlockUpdated(block: Block): void {
+    // Skip blocks that were never rendered (lineCount stays 0 until first render).
+    if (block.frozen || block.lineCount === 0) return;
+
     if (this.streamingActive) {
       this.inputManager?.notifyOutput();
       // Defer update — cursor position is unreliable during streaming
@@ -139,6 +145,11 @@ export class TerminalRenderer {
         this.deferredUpdates.push(block);
       }
       return;
+    }
+
+    // Thinking block end: update "Thinking..." → "Thought for Xs", release spinner lock
+    if (block.type === "thinking" && (block as { ended?: boolean }).ended) {
+      this.inputManager?.setThinkingActive(false);
     }
 
     const hadInput = this.inputManager?.suspendInputLine() ?? false;

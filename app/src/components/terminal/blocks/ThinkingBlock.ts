@@ -9,6 +9,7 @@ export class ThinkingBlock implements Block {
   lineCount = 0;
   frozen = false;
   ended = false;
+  private startTime = Date.now();
 
   constructor(public readonly id: string, public text: string) {}
 
@@ -20,17 +21,15 @@ export class ThinkingBlock implements Block {
     this.ended = true;
   }
 
-  private lineCountOfText(): number {
-    return this.text.split("\n").length;
-  }
-
   render(_cols: number, palette: TerminalPalette): string {
-    const count = this.lineCountOfText();
+    const elapsed = ((Date.now() - this.startTime) / 1000).toFixed(0);
     const icon = this.ended
       ? `${fg(palette.textDim)}${ICON.thinking}${RESET}`
       : `${fg(palette.accent)}${ICON.thinking}${RESET}`;
-    const label = this.ended ? "Thought" : "Thinking...";
+    const label = this.ended
+      ? `Thought for ${elapsed}s`
+      : "Thinking...";
 
-    return `  ${icon} ${DIM}${ITALIC}${label} (${count} lines)${RESET}\r\n`;
+    return `  ${icon} ${DIM}${ITALIC}${label}${RESET}\r\n`;
   }
 }

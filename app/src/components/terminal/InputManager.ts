@@ -50,6 +50,7 @@ export class InputManager {
   // Output tracking — pauses spinner when output is happening
   private spinnerPauseTimer: ReturnType<typeof setTimeout> | null = null;
   private streamingActive = false;
+  private thinkingActive = false;
 
   // Input line tracking — true when user's prompt line is rendered on screen during processing
   private inputLineOnScreen = false;
@@ -82,6 +83,7 @@ export class InputManager {
       clearTimeout(this.spinnerPauseTimer);
       this.spinnerPauseTimer = null;
     }
+    this.thinkingActive = false;
     this.inputLineOnScreen = false;
     this.inputRows = 1;
     this.inputCursorRow = 0;
@@ -141,10 +143,18 @@ export class InputManager {
     }
   }
 
+  /** Called by TerminalRenderer when thinking block appears/ends */
+  setThinkingActive(active: boolean): void {
+    this.thinkingActive = active;
+    if (active && this.spinnerInterval) {
+      this.stopSpinner();
+    }
+  }
+
   /**
    * Call this whenever the renderer is about to write output.
    * Pauses the spinner so it doesn't conflict with streaming text.
-   * Spinner auto-resumes after 600ms of silence (only if not streaming).
+   * Spinner auto-resumes after 600ms of silence (only if not streaming/thinking).
    */
   notifyOutput(): void {
     if (this.mode !== "processing") return;
@@ -155,8 +165,8 @@ export class InputManager {
     if (this.spinnerPauseTimer) clearTimeout(this.spinnerPauseTimer);
     this.spinnerPauseTimer = setTimeout(() => {
       this.spinnerPauseTimer = null;
-      // Don't restart spinner if streaming is active or user is typing
-      if (this.mode === "processing" && !this.streamingActive && this.buffer.length === 0) {
+      // Don't restart spinner if streaming/thinking is active or user is typing
+      if (this.mode === "processing" && !this.streamingActive && !this.thinkingActive && this.buffer.length === 0) {
         this.startSpinner();
       }
     }, 600);
@@ -432,14 +442,9 @@ export class InputManager {
 
     // If typing while processing, pause spinner and show prompt.
     if (this.mode === "processing" && this.buffer.length === 0) {
-      const hadTwoLineSpinner = this.spinnerOnScreen;
       this.stopSpinner();
-      // If spinner had two-line layout (spinner + cursor line below),
-      // stopSpinner already positioned cursor on spinner line — no extra \r\n.
-      // Otherwise, need \r\n to move below the last output line.
-      if (!hadTwoLineSpinner) {
-        this.terminal.write("\r\n");
-      }
+      // After stopSpinner, cursor is always on a blank line (the cleared spinner row,
+      // or a line left after stream/block output + \r\n). No extra \r\n needed.
       this.inputRows = 1;
       this.inputCursorRow = 0;
     } else {
