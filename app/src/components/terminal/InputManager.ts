@@ -455,7 +455,7 @@ export class InputManager {
       const cols = this.terminal.cols || 80;
       const newLen = 2 + this.buffer.length + text.length; // "❯ " = 2 visible chars
       const asciiOnly = !/[^\x20-\x7e]/.test(text) && !/[^\x20-\x7e]/.test(this.buffer);
-      if (asciiOnly && this.inputRows <= 1 && newLen <= cols) {
+      if (asciiOnly && this.inputRows <= 1 && newLen < cols) {
         if (this.cursorPos === this.buffer.length) {
           // Append at end — just write the new chars
           this.buffer += text;
