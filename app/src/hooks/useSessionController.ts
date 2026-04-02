@@ -427,7 +427,7 @@ export function useSessionController(props: SessionControllerProps): SessionCont
           const memberExists = prev.members.some(m => m.agentId === event.taskId);
           const newMembers = memberExists ? prev.members.map(m =>
             m.agentId === event.taskId ? { ...m, status: "working" as const } : m
-          ) : [...prev.members, { agentId: event.taskId, name: event.taskType || event.taskId, role: "teammate" as const, status: "working" as const }];
+          ) : [...prev.members, { agentId: event.taskId, name: event.taskType || event.description?.slice(0, 40) || event.taskId, role: "teammate" as const, status: "working" as const }];
           return { active: true, members: newMembers, tasks: [...prev.tasks, newTask], messages: prev.messages };
         });
       } else if (event.type === "taskProgress") {
