@@ -14,7 +14,7 @@ import type { ToolBlock } from "./blocks/ToolBlock";
 import type { TerminalDocument, DocumentEvent } from "./TerminalDocument";
 import type { TerminalPalette } from "./themes";
 import type { InputManager } from "./InputManager";
-import { CURSOR_SAVE, CURSOR_RESTORE, cursorUp, cursorDown, ERASE_LINE, sanitizeAgentText, formatMarkdownLine } from "./AnsiUtils";
+import { CURSOR_SAVE, CURSOR_RESTORE, cursorUp, cursorDown, ERASE_LINE, DIM, RESET, fg, sanitizeAgentText, formatMarkdownLine, highlightCode } from "./AnsiUtils";
 
 export class TerminalRenderer {
   private cols: number;
@@ -35,6 +35,8 @@ export class TerminalRenderer {
   private streamLineBuffer = "";
   /** Visible columns written for current partial line (for multi-row erase) */
   private streamPartialCols = 0;
+  /** Tracks whether streaming is inside a fenced code block (``` ... ```) */
+  private streamInCodeBlock = false;
 
   constructor(
     private terminal: Terminal,
@@ -125,6 +127,7 @@ export class TerminalRenderer {
       this.responseLength = 0;
       this.streamLineBuffer = "";
       this.streamPartialCols = 0;
+      this.streamInCodeBlock = false;
       this.inputManager?.setStreamingActive(true);
       this.inputManager?.setSpinnerVerb("Responding...");
       this.document.commitBlockLines(block, 0);
@@ -280,7 +283,22 @@ export class TerminalRenderer {
         if (partialRows > 1) this.terminal.write(cursorUp(partialRows - 1));
         this.terminal.write("\r");
 
-        let formatted = formatMarkdownLine(this.streamLineBuffer, this.palette);
+        let formatted: string;
+        if (this.streamLineBuffer.startsWith("```")) {
+          // Code fence marker — render separator and toggle state
+          if (!this.streamInCodeBlock) {
+            const lang = this.streamLineBuffer.slice(3).trim();
+            formatted = `  ${fg(this.palette.textDim)}${"─".repeat(Math.min(this.cols - 4, 38))}${lang ? ` ${lang}` : ""}${RESET}`;
+            this.streamInCodeBlock = true;
+          } else {
+            formatted = `  ${fg(this.palette.textDim)}${"─".repeat(Math.min(this.cols - 4, 38))}${RESET}`;
+            this.streamInCodeBlock = false;
+          }
+        } else if (this.streamInCodeBlock) {
+          formatted = `  ${highlightCode(this.streamLineBuffer, this.palette)}`;
+        } else {
+          formatted = formatMarkdownLine(this.streamLineBuffer, this.palette);
+        }
         // Safety: strip any embedded \r\n — streaming manages its own line breaks
         formatted = formatted.replace(/\r\n/g, "");
         this.terminal.write(formatted + "\r\n");
@@ -314,10 +332,13 @@ export class TerminalRenderer {
       }
       if (partialRows > 1) this.terminal.write(cursorUp(partialRows - 1));
       this.terminal.write("\r");
-      const formatted = formatMarkdownLine(this.streamLineBuffer, this.palette);
+      const formatted = this.streamInCodeBlock
+        ? `  ${highlightCode(this.streamLineBuffer, this.palette)}`
+        : formatMarkdownLine(this.streamLineBuffer, this.palette);
       this.terminal.write(formatted);
       this.streamLineBuffer = "";
       this.streamPartialCols = 0;
+      this.streamInCodeBlock = false;
     }
 
     if (!this.lastStreamedEndedWithNewline) {
