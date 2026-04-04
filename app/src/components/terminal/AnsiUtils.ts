@@ -82,15 +82,9 @@ export function sanitizeAgentText(str: string): string {
     .replace(/\x1b/g, "");                       // any remaining ESC
 }
 
-/** Sanitize pasted text: strip escape sequences (like sanitizeAgentText) + flatten newlines */
+/** Sanitize pasted text: reuse sanitizeAgentText patterns + flatten newlines */
 export function sanitizePastedText(str: string): string {
-  return str
-    .replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "")         // CSI sequences
-    .replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, "")  // OSC sequences
-    .replace(/\x1b[PX^_][^\x1b]*\x1b\\/g, "")        // DCS, SOS, PM, APC
-    .replace(/\x1b[78]/g, "")                          // cursor save/restore
-    .replace(/[\x80-\x9f]/g, "")                       // C1 control codes
-    .replace(/\x1b/g, "")                              // remaining ESC
+  return sanitizeAgentText(str)
     .replace(/\r\n|\r|\n/g, " ")                       // flatten multiline
     .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, "");   // strip control chars
 }
@@ -415,6 +409,91 @@ export function formatMarkdownLine(line: string, palette: TerminalPalette): stri
 
   // Regular line: inline markdown only
   return inlineMarkdown(line, palette);
+}
+
+// ── Table formatting ──────────────────────────────────────────────
+
+/** Check if a line is a markdown table row (starts and ends with |) */
+export function isTableLine(line: string): boolean {
+  return line.startsWith("|") && line.endsWith("|") && line.length > 2;
+}
+
+/**
+ * Format a group of markdown table lines with proper column alignment
+ * and box-drawing borders. Expects contiguous lines that start/end with |.
+ */
+export function formatTable(tableLines: string[], palette: TerminalPalette): string[] {
+  if (tableLines.length === 0) return [];
+
+  // Parse cells from each row
+  const rows = tableLines.map(line =>
+    line.slice(1, -1).split("|").map(c => c.trim())
+  );
+
+  // Find separator row (|---|---|)
+  let sepIdx = -1;
+  for (let i = 0; i < tableLines.length; i++) {
+    if (/^\|[\s\-:|]+\|$/.test(tableLines[i])) { sepIdx = i; break; }
+  }
+
+  // Parse column alignment from separator
+  const aligns: ("left" | "center" | "right")[] = sepIdx >= 0
+    ? tableLines[sepIdx].slice(1, -1).split("|").map(cell => {
+        const t = cell.trim();
+        if (t.startsWith(":") && t.endsWith(":")) return "center";
+        if (t.endsWith(":")) return "right";
+        return "left";
+      })
+    : [];
+
+  // Calculate max column widths (skip separator row)
+  const numCols = Math.max(...rows.map(r => r.length));
+  const colWidths: number[] = [];
+  for (let c = 0; c < numCols; c++) {
+    let max = 3;
+    for (let i = 0; i < rows.length; i++) {
+      if (i === sepIdx) continue;
+      if (c < rows[i].length) max = Math.max(max, rows[i][c].length);
+    }
+    colWidths.push(max);
+  }
+
+  const bc = fg(palette.textDim);
+  const result: string[] = [];
+
+  // Top border: ┌──────┬──────┐
+  result.push(`${bc}┌${colWidths.map(w => "─".repeat(w + 2)).join("┬")}┐${RESET}`);
+
+  for (let i = 0; i < tableLines.length; i++) {
+    if (i === sepIdx) {
+      // Separator: ├──────┼──────┤
+      result.push(`${bc}├${colWidths.map(w => "─".repeat(w + 2)).join("┼")}┤${RESET}`);
+      continue;
+    }
+
+    const cells = rows[i];
+    const isHeader = sepIdx >= 0 && i < sepIdx;
+    const formatted = colWidths.map((w, c) => {
+      const content = c < cells.length ? cells[c] : "";
+      const align = c < aligns.length ? aligns[c] : "left";
+      const pad = Math.max(0, w - content.length);
+      let padded: string;
+      if (align === "right") padded = " ".repeat(pad) + content;
+      else if (align === "center") {
+        const left = Math.floor(pad / 2);
+        padded = " ".repeat(left) + content + " ".repeat(pad - left);
+      } else padded = content + " ".repeat(pad);
+
+      const styled = inlineMarkdown(padded, palette);
+      return isHeader ? ` ${BOLD}${styled}${BOLD_OFF} ` : ` ${styled} `;
+    });
+    result.push(`${bc}│${RESET}${formatted.join(`${bc}│${RESET}`)}${bc}│${RESET}`);
+  }
+
+  // Bottom border: └──────┴──────┘
+  result.push(`${bc}└${colWidths.map(w => "─".repeat(w + 2)).join("┴")}┘${RESET}`);
+
+  return result;
 }
 
 // ── Diff formatting ────────────────────────────────────────────────

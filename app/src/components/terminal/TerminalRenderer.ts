@@ -14,7 +14,7 @@ import type { ToolBlock } from "./blocks/ToolBlock";
 import type { TerminalDocument, DocumentEvent } from "./TerminalDocument";
 import type { TerminalPalette } from "./themes";
 import type { InputManager } from "./InputManager";
-import { CURSOR_SAVE, CURSOR_RESTORE, cursorUp, cursorDown, ERASE_LINE, DIM, RESET, fg, sanitizeAgentText, formatMarkdownLine, highlightCode } from "./AnsiUtils";
+import { CURSOR_SAVE, CURSOR_RESTORE, cursorUp, cursorDown, ERASE_LINE, RESET, fg, sanitizeAgentText, formatMarkdownLine, highlightCode, isTableLine, formatTable } from "./AnsiUtils";
 
 export class TerminalRenderer {
   private cols: number;
@@ -37,6 +37,12 @@ export class TerminalRenderer {
   private streamPartialCols = 0;
   /** Tracks whether streaming is inside a fenced code block (``` ... ```) */
   private streamInCodeBlock = false;
+  /** Buffered table lines during streaming (flushed when table ends) */
+  private streamTableBuffer: string[] = [];
+  /** Whether we're currently accumulating table lines during streaming */
+  private inTableBuffer = false;
+  /** Whether partial raw text was actually written to terminal (for erase tracking) */
+  private streamPartialWritten = false;
 
   constructor(
     private terminal: Terminal,
@@ -128,6 +134,9 @@ export class TerminalRenderer {
       this.streamLineBuffer = "";
       this.streamPartialCols = 0;
       this.streamInCodeBlock = false;
+      this.streamTableBuffer = [];
+      this.inTableBuffer = false;
+      this.streamPartialWritten = false;
       this.inputManager?.setStreamingActive(true);
       this.inputManager?.setSpinnerVerb("Responding...");
       this.document.commitBlockLines(block, 0);
@@ -268,45 +277,64 @@ export class TerminalRenderer {
     // Line-buffer approach: accumulate text until newline, then format the complete line.
     // Partial lines are written raw; when completed by a newline the raw text is erased
     // (handling multi-row wrap) and replaced with the formatted version.
+    // Table lines are buffered and formatted together when the table ends.
     const lines = trimmed.split("\n");
     for (let i = 0; i < lines.length; i++) {
       this.streamLineBuffer += lines[i];
 
       if (i < lines.length - 1) {
-        // Line complete — erase raw partial (may span multiple terminal rows), write formatted
-        const partialRows = Math.max(1, Math.ceil(this.streamPartialCols / this.cols));
-        if (partialRows > 1) this.terminal.write(cursorUp(partialRows - 1));
-        for (let r = 0; r < partialRows; r++) {
-          this.terminal.write(`\r${ERASE_LINE}`);
-          if (r < partialRows - 1) this.terminal.write(cursorDown(1));
-        }
-        if (partialRows > 1) this.terminal.write(cursorUp(partialRows - 1));
-        this.terminal.write("\r");
-
-        let formatted: string;
-        if (this.streamLineBuffer.startsWith("```")) {
-          // Code fence marker — render separator and toggle state
-          if (!this.streamInCodeBlock) {
-            const lang = this.streamLineBuffer.slice(3).trim();
-            formatted = `  ${fg(this.palette.textDim)}${"─".repeat(Math.min(this.cols - 4, 38))}${lang ? ` ${lang}` : ""}${RESET}`;
-            this.streamInCodeBlock = true;
-          } else {
-            formatted = `  ${fg(this.palette.textDim)}${"─".repeat(Math.min(this.cols - 4, 38))}${RESET}`;
-            this.streamInCodeBlock = false;
+        // Line complete — erase raw partial if it was written to terminal
+        if (this.streamPartialWritten) {
+          const partialRows = Math.max(1, Math.ceil(this.streamPartialCols / this.cols));
+          if (partialRows > 1) this.terminal.write(cursorUp(partialRows - 1));
+          for (let r = 0; r < partialRows; r++) {
+            this.terminal.write(`\r${ERASE_LINE}`);
+            if (r < partialRows - 1) this.terminal.write(cursorDown(1));
           }
-        } else if (this.streamInCodeBlock) {
-          formatted = `  ${highlightCode(this.streamLineBuffer, this.palette)}`;
-        } else {
-          formatted = formatMarkdownLine(this.streamLineBuffer, this.palette);
+          if (partialRows > 1) this.terminal.write(cursorUp(partialRows - 1));
+          this.terminal.write("\r");
+          this.streamPartialWritten = false;
         }
-        // Safety: strip any embedded \r\n — streaming manages its own line breaks
-        formatted = formatted.replace(/\r\n/g, "");
-        this.terminal.write(formatted + "\r\n");
+
+        if (!this.streamInCodeBlock && isTableLine(this.streamLineBuffer)) {
+          // Buffer table line — formatted together when table ends
+          this.streamTableBuffer.push(this.streamLineBuffer);
+          this.inTableBuffer = true;
+        } else {
+          // Non-table line — flush any buffered table first
+          if (this.streamTableBuffer.length > 0) {
+            this.flushStreamTable();
+          }
+          this.inTableBuffer = false;
+
+          let formatted: string;
+          if (this.streamLineBuffer.startsWith("```")) {
+            // Code fence marker — render separator and toggle state
+            if (!this.streamInCodeBlock) {
+              const lang = this.streamLineBuffer.slice(3).trim();
+              formatted = `  ${fg(this.palette.textDim)}${"─".repeat(Math.min(this.cols - 4, 38))}${lang ? ` ${lang}` : ""}${RESET}`;
+              this.streamInCodeBlock = true;
+            } else {
+              formatted = `  ${fg(this.palette.textDim)}${"─".repeat(Math.min(this.cols - 4, 38))}${RESET}`;
+              this.streamInCodeBlock = false;
+            }
+          } else if (this.streamInCodeBlock) {
+            formatted = `  ${highlightCode(this.streamLineBuffer, this.palette)}`;
+          } else {
+            formatted = formatMarkdownLine(this.streamLineBuffer, this.palette);
+          }
+          // Safety: strip any embedded \r\n — streaming manages its own line breaks
+          formatted = formatted.replace(/\r\n/g, "");
+          this.terminal.write(formatted + "\r\n");
+        }
         this.streamLineBuffer = "";
         this.streamPartialCols = 0;
       } else if (lines[i].length > 0) {
-        // Partial line — write raw chars (will be reformatted on newline)
-        this.terminal.write(lines[i]);
+        // Partial line — write raw chars only if not buffering a table
+        if (!this.inTableBuffer) {
+          this.terminal.write(lines[i]);
+          this.streamPartialWritten = true;
+        }
         this.streamPartialCols += lines[i].length;
       }
     }
@@ -316,22 +344,47 @@ export class TerminalRenderer {
     this.inputManager?.setTokenCount(Math.round(this.responseLength / 4));
   }
 
+  /** Flush buffered table lines as a formatted table block */
+  private flushStreamTable(): void {
+    if (this.streamTableBuffer.length === 0) return;
+    const formatted = formatTable(this.streamTableBuffer, this.palette);
+    for (const line of formatted) {
+      this.terminal.write(line.replace(/\r\n/g, "") + "\r\n");
+    }
+    this.streamTableBuffer = [];
+  }
+
   /** Called when streaming ends */
   private onStreamEnd(): void {
     this.streamingActive = false;
     this.inputManager?.setStreamingActive(false);
     this.inputManager?.setSpinnerVerb("Thinking...");
 
+    // Flush any buffered table lines (include partial line if table-like)
+    if (this.streamTableBuffer.length > 0) {
+      if (this.streamLineBuffer.length > 0 && this.streamLineBuffer.startsWith("|")) {
+        this.streamTableBuffer.push(this.streamLineBuffer);
+        this.streamLineBuffer = "";
+        this.streamPartialCols = 0;
+        this.streamPartialWritten = false;
+      }
+      this.flushStreamTable();
+      this.inTableBuffer = false;
+    }
+
     // Format last partial line that wasn't completed by a newline
     if (this.streamLineBuffer.length > 0) {
-      const partialRows = Math.max(1, Math.ceil(this.streamPartialCols / this.cols));
-      if (partialRows > 1) this.terminal.write(cursorUp(partialRows - 1));
-      for (let r = 0; r < partialRows; r++) {
-        this.terminal.write(`\r${ERASE_LINE}`);
-        if (r < partialRows - 1) this.terminal.write(cursorDown(1));
+      if (this.streamPartialWritten) {
+        const partialRows = Math.max(1, Math.ceil(this.streamPartialCols / this.cols));
+        if (partialRows > 1) this.terminal.write(cursorUp(partialRows - 1));
+        for (let r = 0; r < partialRows; r++) {
+          this.terminal.write(`\r${ERASE_LINE}`);
+          if (r < partialRows - 1) this.terminal.write(cursorDown(1));
+        }
+        if (partialRows > 1) this.terminal.write(cursorUp(partialRows - 1));
+        this.terminal.write("\r");
+        this.streamPartialWritten = false;
       }
-      if (partialRows > 1) this.terminal.write(cursorUp(partialRows - 1));
-      this.terminal.write("\r");
       let formatted: string;
       if (this.streamLineBuffer.startsWith("```")) {
         formatted = `  ${fg(this.palette.textDim)}${"─".repeat(Math.min(this.cols - 4, 38))}${RESET}`;
@@ -387,6 +440,11 @@ export class TerminalRenderer {
       this.streamInCodeBlock = false;
       this.streamLineBuffer = "";
       this.streamPartialCols = 0;
+      this.lastStreamedEndedWithNewline = false;
+      this.responseLength = 0;
+      this.streamTableBuffer = [];
+      this.inTableBuffer = false;
+      this.streamPartialWritten = false;
     }
 
     // Stop spinner interval to prevent writes during redraw

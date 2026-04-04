@@ -88,8 +88,12 @@ export class InputManager {
         if (e.key === "Tab") { e.preventDefault(); this.callbacks.onMenuSelect?.(); return false; }
         if (e.key === "Escape") { e.preventDefault(); this.closeMenu(); return false; }
       }
-      // Prevent xterm from processing Ctrl+V — we handle paste via clipboard API
-      if (e.ctrlKey && e.key === "v") return false;
+      // Prevent xterm from processing Ctrl+V — we handle paste via clipboard API.
+      // preventDefault stops the browser paste event from also firing through onData.
+      if (e.ctrlKey && e.key === "v") {
+        e.preventDefault();
+        return false;
+      }
       return true;
     });
     // Capture keyboard input
@@ -425,9 +429,10 @@ export class InputManager {
       return;
     }
 
-    // Ctrl+V: paste from clipboard
+    // Ctrl+V: paste from clipboard (only in modes that accept input)
     if (e.ctrlKey && e.key === "v") {
       e.preventDefault();
+      if (this.mode !== "normal" && this.mode !== "processing") return;
       const snapshotMode = this.mode;
       const snapshotBuffer = this.buffer;
       navigator.clipboard.readText().then((text) => {

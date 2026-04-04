@@ -1,6 +1,6 @@
 import type { Block } from "./Block";
 import type { TerminalPalette } from "../themes";
-import { RESET, wordWrap, formatMarkdownLine, fg, highlightCode, sanitizeAgentText } from "../AnsiUtils";
+import { RESET, wordWrap, formatMarkdownLine, fg, highlightCode, sanitizeAgentText, isTableLine, formatTable } from "../AnsiUtils";
 
 export class AssistantBlock implements Block {
   readonly type = "assistant";
@@ -27,9 +27,18 @@ export class AssistantBlock implements Block {
     const lines: string[] = [];
     let inCodeBlock = false;
     let codeLang = "";
+    let tableBuffer: string[] = [];
+
+    const flushTable = () => {
+      if (tableBuffer.length > 0) {
+        lines.push(...formatTable(tableBuffer, palette));
+        tableBuffer = [];
+      }
+    };
 
     for (const rawLine of sanitized.split("\n")) {
       if (rawLine.startsWith("```")) {
+        flushTable();
         if (!inCodeBlock) {
           inCodeBlock = true;
           codeLang = rawLine.slice(3).trim();
@@ -44,7 +53,10 @@ export class AssistantBlock implements Block {
 
       if (inCodeBlock) {
         lines.push(`  ${highlightCode(rawLine, palette)}`);
+      } else if (isTableLine(rawLine)) {
+        tableBuffer.push(rawLine);
       } else {
+        flushTable();
         // Add blank line before headers (spacing managed here, not in formatMarkdownLine)
         if (/^#{1,6}\s/.test(rawLine)) lines.push("");
         // wordWrap on plain text first (ANSI bytes break column counting),
@@ -54,6 +66,7 @@ export class AssistantBlock implements Block {
         if (/^#{1,6}\s/.test(rawLine)) lines.push("");
       }
     }
+    flushTable();
 
     return lines.join("\r\n") + "\r\n";
   }
