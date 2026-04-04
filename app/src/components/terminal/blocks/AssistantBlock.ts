@@ -31,7 +31,7 @@ export class AssistantBlock implements Block {
 
     const flushTable = () => {
       if (tableBuffer.length > 0) {
-        lines.push(...formatTable(tableBuffer, palette));
+        lines.push(...formatTable(tableBuffer, palette, cols));
         tableBuffer = [];
       }
     };

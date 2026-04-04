@@ -347,7 +347,7 @@ export class TerminalRenderer {
   /** Flush buffered table lines as a formatted table block */
   private flushStreamTable(): void {
     if (this.streamTableBuffer.length === 0) return;
-    const formatted = formatTable(this.streamTableBuffer, this.palette);
+    const formatted = formatTable(this.streamTableBuffer, this.palette, this.cols);
     for (const line of formatted) {
       this.terminal.write(line.replace(/\r\n/g, "") + "\r\n");
     }

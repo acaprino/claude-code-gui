@@ -89,17 +89,72 @@ export function sanitizePastedText(str: string): string {
     .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, "");   // strip control chars
 }
 
-// ── Word wrapping ──────────────────────────────────────────────────
+// ── String width ──────────────────────────────────────────────────
 
 /** Strip ANSI escape sequences for length calculation */
 export function stripAnsi(str: string): string {
   return str.replace(/\x1b\[[0-9;]*[A-Za-z]|\x1b[78]/g, "");
 }
 
-/** Get visible length of a string (excludes ANSI sequences) */
-export function visibleLength(str: string): number {
-  return stripAnsi(str).length;
+/** Check if a Unicode code point is zero-width (combining marks, ZWJ, etc.) */
+function isZeroWidth(cp: number): boolean {
+  if (cp >= 0x0300 && cp <= 0x036F) return true;   // Combining diacriticals
+  if (cp >= 0x1AB0 && cp <= 0x1AFF) return true;   // Combining diacriticals extended
+  if (cp >= 0x1DC0 && cp <= 0x1DFF) return true;   // Combining diacriticals supplement
+  if (cp >= 0x20D0 && cp <= 0x20FF) return true;   // Combining marks for symbols
+  if (cp >= 0xFE00 && cp <= 0xFE0F) return true;   // Variation selectors
+  if (cp >= 0xFE20 && cp <= 0xFE2F) return true;   // Combining half marks
+  if (cp >= 0xE0100 && cp <= 0xE01EF) return true;  // Variation selectors supplement
+  if (cp === 0x200B || cp === 0x200C || cp === 0x200D || cp === 0xFEFF) return true; // ZWSP, ZWNJ, ZWJ, BOM
+  if (cp >= 0x200E && cp <= 0x200F) return true;    // LRM, RLM
+  return false;
 }
+
+/** Check if a Unicode code point renders as a wide (2-column) character */
+function isWideChar(cp: number): boolean {
+  if (cp >= 0x1100 && cp <= 0x115F) return true;    // Hangul Jamo
+  if (cp >= 0x2E80 && cp <= 0x303F) return true;    // CJK Radicals, Kangxi, Symbols/Punctuation
+  if (cp >= 0x3040 && cp <= 0x33FF) return true;    // Hiragana, Katakana, Bopomofo, CJK Compat
+  if (cp >= 0x3400 && cp <= 0x4DBF) return true;    // CJK Extension A
+  if (cp >= 0x4E00 && cp <= 0x9FFF) return true;    // CJK Unified Ideographs
+  if (cp >= 0xAC00 && cp <= 0xD7AF) return true;    // Hangul Syllables
+  if (cp >= 0xF900 && cp <= 0xFAFF) return true;    // CJK Compatibility Ideographs
+  if (cp >= 0xFE10 && cp <= 0xFE19) return true;    // Vertical forms
+  if (cp >= 0xFE30 && cp <= 0xFE6F) return true;    // CJK Compatibility Forms
+  if (cp >= 0xFF01 && cp <= 0xFF60) return true;    // Fullwidth forms
+  if (cp >= 0xFFE0 && cp <= 0xFFE6) return true;    // Fullwidth signs
+  if (cp >= 0x20000 && cp <= 0x323AF) return true;   // CJK Extensions B-H
+  if (cp >= 0x1F300 && cp <= 0x1F9FF) return true;  // Emoji misc/emoticons/clothing
+  if (cp >= 0x1FA00 && cp <= 0x1FAFF) return true;  // Emoji extended
+  if (cp >= 0x2600 && cp <= 0x27BF) return true;    // Misc symbols, dingbats
+  return false;
+}
+
+/**
+ * Calculate the visual width of a string in terminal columns.
+ * Handles wide characters (CJK, emoji = 2 columns) and
+ * zero-width characters (combining marks, ZWJ = 0 columns).
+ */
+export function stringWidth(str: string): number {
+  // Fast path: pure ASCII printable
+  if (/^[\x20-\x7e]*$/.test(str)) return str.length;
+
+  let width = 0;
+  for (const ch of str) {
+    const cp = ch.codePointAt(0)!;
+    if (cp < 0x20) continue;
+    if (isZeroWidth(cp)) continue;
+    width += isWideChar(cp) ? 2 : 1;
+  }
+  return width;
+}
+
+/** Get visible length of a string (excludes ANSI sequences, handles wide chars) */
+export function visibleLength(str: string): number {
+  return stringWidth(stripAnsi(str));
+}
+
+// ── Word wrapping ──────────────────────────────────────────────────
 
 /**
  * Word-wrap text to fit within a given column width.
@@ -121,12 +176,11 @@ export function wordWrap(text: string, cols: number): string[] {
     let lineLen = 0;
 
     for (const word of words) {
-      const wLen = word.length;
+      const wLen = stringWidth(word);
       if (lineLen + wLen > cols && lineLen > 0) {
         result.push(line);
         line = "";
         lineLen = 0;
-        // Skip leading whitespace on new line
         if (/^\s+$/.test(word)) continue;
       }
       line += word;
@@ -172,15 +226,14 @@ export function boxDraw(
 
   // Top border: ╭─ Title ─────────╮
   const titleStr = title ? ` ${title} ` : "";
-  const topFill = Math.max(0, innerWidth - stripAnsi(titleStr).length);
+  const topFill = Math.max(0, innerWidth - visibleLength(titleStr));
   lines.push(
     `${bc}${BOX.topLeft}${BOX.horizontal}${RESET}${tc}${titleStr}${RESET}${bc}${BOX.horizontal.repeat(topFill)}${BOX.topRight}${RESET}`
   );
 
   // Content lines: │ content │
   for (const line of content) {
-    const visible = stripAnsi(line);
-    const pad = Math.max(0, innerWidth - visible.length);
+    const pad = Math.max(0, innerWidth - visibleLength(line));
     lines.push(
       `${bc}${BOX.vertical}${RESET} ${line}${" ".repeat(pad)}${bc}${BOX.vertical}${RESET}`
     );
@@ -420,9 +473,10 @@ export function isTableLine(line: string): boolean {
 
 /**
  * Format a group of markdown table lines with proper column alignment
- * and box-drawing borders. Expects contiguous lines that start/end with |.
+ * and box-drawing borders. Uses stringWidth for correct CJK/emoji handling.
+ * Falls back to vertical key-value format when the table is too wide for cols.
  */
-export function formatTable(tableLines: string[], palette: TerminalPalette): string[] {
+export function formatTable(tableLines: string[], palette: TerminalPalette, cols?: number): string[] {
   if (tableLines.length === 0) return [];
 
   // Parse cells from each row
@@ -446,16 +500,24 @@ export function formatTable(tableLines: string[], palette: TerminalPalette): str
       })
     : [];
 
-  // Calculate max column widths (skip separator row)
+  // Calculate max column widths using stringWidth (skip separator row)
   const numCols = Math.max(...rows.map(r => r.length));
   const colWidths: number[] = [];
   for (let c = 0; c < numCols; c++) {
     let max = 3;
     for (let i = 0; i < rows.length; i++) {
       if (i === sepIdx) continue;
-      if (c < rows[i].length) max = Math.max(max, rows[i][c].length);
+      if (c < rows[i].length) max = Math.max(max, stringWidth(rows[i][c]));
     }
     colWidths.push(max);
+  }
+
+  // Total width: borders (numCols+1) + padding (numCols*2) + content
+  const totalWidth = numCols + 1 + numCols * 2 + colWidths.reduce((a, b) => a + b, 0);
+
+  // Vertical fallback when table is too wide for terminal
+  if (cols && totalWidth > cols) {
+    return formatTableVertical(rows, sepIdx, palette);
   }
 
   const bc = fg(palette.textDim);
@@ -466,7 +528,6 @@ export function formatTable(tableLines: string[], palette: TerminalPalette): str
 
   for (let i = 0; i < tableLines.length; i++) {
     if (i === sepIdx) {
-      // Separator: ├──────┼──────┤
       result.push(`${bc}├${colWidths.map(w => "─".repeat(w + 2)).join("┼")}┤${RESET}`);
       continue;
     }
@@ -476,7 +537,8 @@ export function formatTable(tableLines: string[], palette: TerminalPalette): str
     const formatted = colWidths.map((w, c) => {
       const content = c < cells.length ? cells[c] : "";
       const align = c < aligns.length ? aligns[c] : "left";
-      const pad = Math.max(0, w - content.length);
+      const contentWidth = stringWidth(content);
+      const pad = Math.max(0, w - contentWidth);
       let padded: string;
       if (align === "right") padded = " ".repeat(pad) + content;
       else if (align === "center") {
@@ -492,6 +554,30 @@ export function formatTable(tableLines: string[], palette: TerminalPalette): str
 
   // Bottom border: └──────┴──────┘
   result.push(`${bc}└${colWidths.map(w => "─".repeat(w + 2)).join("┴")}┘${RESET}`);
+
+  return result;
+}
+
+/** Vertical key-value fallback for tables too wide for the terminal */
+function formatTableVertical(rows: string[][], sepIdx: number, palette: TerminalPalette): string[] {
+  // Header row provides field names
+  const headers = sepIdx > 0 ? rows[0] : rows[0].map((_, i) => `Column ${i + 1}`);
+  const dataRows = rows.filter((_, i) => i !== sepIdx && (sepIdx < 0 || i > 0));
+
+  const bc = fg(palette.textDim);
+  const result: string[] = [];
+
+  for (let r = 0; r < dataRows.length; r++) {
+    if (r > 0) result.push(""); // blank line between records
+    const row = dataRows[r];
+    for (let c = 0; c < row.length; c++) {
+      const label = c < headers.length ? headers[c] : `Column ${c + 1}`;
+      result.push(`${BOLD}${inlineMarkdown(label, palette)}${BOLD_OFF}${bc}: ${RESET}${inlineMarkdown(row[c], palette)}`);
+    }
+    if (r < dataRows.length - 1) {
+      result.push(`${bc}${"─".repeat(20)}${RESET}`);
+    }
+  }
 
   return result;
 }
@@ -513,7 +599,7 @@ export function formatDiff(diffText: string, palette: TerminalPalette): string[]
 // ── Horizontal rule ────────────────────────────────────────────────
 
 export function horizontalRule(text: string, cols: number, color: string): string {
-  const textLen = text.length + 2; // space padding
+  const textLen = stringWidth(text) + 2; // space padding
   const sideLen = Math.max(2, Math.floor((cols - textLen) / 2));
   const dash = "\u2500";
   return `${fg(color)}${dash.repeat(sideLen)} ${text} ${dash.repeat(sideLen)}${RESET}`;
